@@ -1,0 +1,15 @@
+python-dotenv
+typer
+fastapi
+elevenlabs
+srt
+torch
+torchaudio
+openai-whisper
+beautifulsoup4
+markdownify
+soundfile
+openai
+pandas
+transformers
+git+https://github.com/huggingface/parler-tts.git

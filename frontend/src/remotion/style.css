@@ -1,0 +1,10 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+	--remotion-font: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell,
+		Noto Sans, sans-serif, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif,
+		'Apple Color Emoji', 'Segoe UI Emoji';
+	--base-size: 48px;
+}
