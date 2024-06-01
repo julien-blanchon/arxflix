@@ -19,6 +19,7 @@ from backend.utils.generate_paper import process_article
 from backend.utils.generate_script import process_script
 from backend.types import Text, RichContent
 
+PAPER_URL =''
 # Load logger
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,8 @@ api = fastapi.FastAPI()
 @cli.command("generate_paper")
 @api.get("/generate_paper/")
 def generate_paper(url: str) -> str:
+    global PAPER_URL
+    PAPER_URL = url
     logger.info(f"Generating paper from URL: {url}")
     # Also possible with https://r.jina.ai/{url}
     paper = process_article(url)
@@ -45,7 +48,7 @@ def generate_script(paper: str, use_path: bool = True) -> str:
     if use_path:
         paper_path = paper
         paper = open(paper_path, "r").read()
-    script = process_script(paper)
+    script = process_script(paper,PAPER_URL)
     return script
 
 
