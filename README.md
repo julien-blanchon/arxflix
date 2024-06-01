@@ -1,4 +1,5 @@
-# ArXFlix
+<img src="https://github.com/julien-blanchon/arxflix/assets/75791840/cfc7217a-67dd-4c34-832c-7d2651f722dd" style="width: 50%; height: auto;">
+
 
 ## Description
 
