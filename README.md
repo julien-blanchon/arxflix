@@ -1,9 +1,8 @@
-<img src="https://github.com/julien-blanchon/arxflix/assets/75791840/cfc7217a-67dd-4c34-832c-7d2651f722dd" style="width: 50%; height: auto;">
+# ArXFlix
 
+![ArXFlix](https://github.com/julien-blanchon/arxflix/assets/75791840/cfc7217a-67dd-4c34-832c-7d2651f722dd)
 
-## Description
-
-ArXFlix converts research papers into two minutes video summaries, with all the key information ready to visualize.
+ArXFlix converts research papers into two-minute video summaries, providing all the key information in a visual format.
 
 ## Installation and Usage
 
@@ -11,20 +10,20 @@ ArXFlix converts research papers into two minutes video summaries, with all the 
 
 1. Clone the repository.
 2. Navigate to the backend folder.
-3. Create a virtual environment
+3. Create a virtual environment.
 4. Install the backend dependencies by running the following command:
 
   ``` shell
   pip install -r requirements.txt
   ```
 
-5. Run the backend server by running
+5. Run the backend server by executing:
 
   ``` shell
   fastapi run main.py
   ```
 
-6. Backend server should be running on `PORT` 8000
+6. The backend server should be running on PORT 8000.
 
 ### Frontend
 
@@ -36,16 +35,17 @@ ArXFlix converts research papers into two minutes video summaries, with all the 
   pnpm install
   ```
 
-4. Run the Frontend App
+4. Run the Frontend AppRun the Frontend App:
 
   ```shell
   pnpm dev
   ```
-5. Client App should be running on `PORT` 3000
+
+5. The client app should be running on PORT 3000.
 
 ## Contributing
 
-If you'd like to contribute to this project, please follow these steps:
+If you’d like to contribute to this project, please follow these steps:
 
 1. Fork the repository.
 2. Create a new branch.
