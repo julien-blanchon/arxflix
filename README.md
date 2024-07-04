@@ -63,3 +63,7 @@ If you’d like to contribute to this project, please follow these steps:
 4. Commit your changes.
 5. Push to the branch.
 6. Open a pull request.
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=julien-blanchon/arxflix&type=Date)](https://star-history.com/#julien-blanchon/arxflix&Date)
