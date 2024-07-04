@@ -1,8 +1,18 @@
+![ArXFlix](./assets/image/llama6.png)
+
 # ArXFlix
 
-![ArXFlix](https://github.com/julien-blanchon/arxflix/assets/75791840/cfc7217a-67dd-4c34-832c-7d2651f722dd)
+[![Arxflix - Youtube](https://img.shields.io/badge/Arxflix-Youtube-red)](https://www.youtube.com/@Arxflix)
+[![Arxflix - X](https://img.shields.io/badge/Arxflix-X-black)](https://x.com/arxflix)
 
 ArXFlix converts research papers into two-minute video summaries, providing all the key information in a visual format.
+
+Example:
+
+[![Your Transformer Might Be Linear!](https://img.youtube.com/vi/FqGK-FDztgg/default.jpg)](https://youtu.be/FqGK-FDztgg)
+[![Florence 2: The Future of Unified Vision Tasks!](https://img.youtube.com/vi/umc-jUMqrmE/default.jpg)](https://youtu.be/umc-jUMqrmE)
+[![Kandinsky: Revolutionizing Text to Image Synthesis with Prior Models & Latent Diffusion](https://img.youtube.com/vi/1HptxaIGywk/default.jpg)](https://youtu.be/1HptxaIGywk)
+
 
 ## Installation and Usage
 
