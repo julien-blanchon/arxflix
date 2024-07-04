@@ -158,4 +158,5 @@ def process_article(url: str) -> str:
     markdown_article = markdown_article.replace("\n\n\n", "\n\n").replace(
         "\n\n\n", "\n\n"
     )
+    markdown_article = markdown_article.replace("![](", f"![]({url}/")
     return markdown_article

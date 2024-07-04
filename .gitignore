@@ -341,3 +341,5 @@ public/
 **/*.mp3
 **/*.mp4
 **/*.wav
+client_secrets.json
+local/

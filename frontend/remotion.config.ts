@@ -4,11 +4,8 @@
 // Note: When using the Node.JS APIs, the config file doesn't apply. Instead, pass options directly to the APIs
 
 import { Config } from "@remotion/cli/config";
-import { webpackOverride } from "./remotion/webpack-override.mjs";
-Config.setConcurrency(8);
-Config.setCodec("h264");
-Config.setVideoImageFormat("jpeg");
+import { webpackOverride } from "./src/remotion/webpack-override.mjs";
 Config.overrideWebpackConfig(webpackOverride);
 Config.setPublicDir("./public");
-Config.setEntryPoint("./remotion/index.ts");
+Config.setEntryPoint("./src/remotion/index.ts");
 

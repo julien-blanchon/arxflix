@@ -1,6 +1,7 @@
 python-dotenv
 typer
 fastapi
+pydantic
 elevenlabs
 srt
 torch
@@ -12,4 +13,8 @@ soundfile
 openai
 pandas
 transformers
-git+https://github.com/huggingface/parler-tts.git
+lmnt
+python-youtube
+arxiv
+ffmpeg
+joblib

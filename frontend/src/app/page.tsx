@@ -2,21 +2,10 @@
 import { useState } from "react";
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@/components/ui/resizable"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { MDEditor } from "@/components/markdown"
-import { ArrowRightIcon } from '@radix-ui/react-icons'
-import { RemotionRoot } from "@/remotion/Root"
-import { AudioPlayer } from "@/components/audioplayer"
 import { Textarea } from "@/components/ui/textarea"
 import axios from 'axios';
-// import GeneratePaper from "@/components/tabs/generate_paper";
 import { Step, type StepItem, Stepper, useStepper } from "@/components/stepper";
-import GenerationStepper from "@/components/GenerationStepper";
 import { ScrollText } from 'lucide-react';
 import { Captions } from 'lucide-react';
 import { AudioLines } from 'lucide-react';
@@ -177,7 +166,7 @@ export default function Home() {
         setFolder(null);
       } else {
         setFolder(_folder);
-        setTotalDuration(response.data.total_duration);
+        setTotalDuration(response.data.total_duration || 60*4);
       }
     } catch (error) {
       console.error("Error generating the assets:", error);
@@ -258,7 +247,7 @@ export default function Home() {
                 <Player
                   component={ArxflixComposition}
                   inputProps={{
-                    audioOffsetInSeconds: 0,
+                    introFileName: `${folder}/intro.txt`,
                     audioFileName: `${folder}/audio.wav`,
                     richContentFileName: `${folder}/rich.json`,
                     subtitlesFileName: `${folder}/subtitles.srt`,
@@ -271,9 +260,9 @@ export default function Home() {
                     waveLinesToDisplay: 300,
                     waveNumberOfSamples: "512",
                     mirrorWave: false,
-                    durationInSeconds: totalDuration || 60*3,
+                    audioOffsetInSeconds: 0,
                   }}
-                  durationInFrames={totalDuration || 60*3 * VIDEO_FPS}
+                  durationInFrames={totalDuration || 60*4 * VIDEO_FPS}
                   compositionWidth={1920}
                   compositionHeight={1080}
                   fps={30}
@@ -281,33 +270,6 @@ export default function Home() {
                   controls
                 />
               )}
-
-              {/* <Player
-                  component={ArxflixComposition}
-                  inputProps={{
-                    audioOffsetInSeconds: 0,
-                    audioFileName: `${folder}/audio.wav`,
-                    richContentFileName: `${folder}/rich.json`,
-                    subtitlesFileName: `${folder}/subtitles.srt`,
-                    onlyDisplayCurrentSentence: true,
-                    subtitlesLinePerPage: 2,
-                    subtitlesZoomMeasurerSize: 10,
-                    subtitlesLineHeight: 98,
-                    waveColor: "#a3a5ae",
-                    waveFreqRangeStartIndex: 5,
-                    waveLinesToDisplay: 300,
-                    waveNumberOfSamples: "512",
-                    mirrorWave: false,
-                    durationInSeconds: 5,
-                  }}
-                  durationInFrames={120}
-                  compositionWidth={1920}
-                  compositionHeight={1080}
-                  fps={30}
-                  style={{ width: "100%", height: "100%" }}
-                  controls
-              /> */}
-
             </div>
             <StepButtons />
           </Step>

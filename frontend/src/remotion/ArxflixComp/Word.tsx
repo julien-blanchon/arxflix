@@ -2,31 +2,25 @@ import { Easing } from 'remotion';
 import { interpolate } from 'remotion';
 import React from 'react';
 import { SubtitleItem } from 'parse-srt';
-// import katex from 'katex';
 import { InlineMath } from 'react-katex';
-// import { makeTransform, translateY, translate } from "@remotion/animation-utils";
 
 export const Word: React.FC<{
 	item: SubtitleItem;
 	frame: number;
 }> = ({ item, frame, }) => {
-	// if bold: *word* then use BoldWord
-	// else use ClassicalWord
 	if (item.text.startsWith('*') && item.text.endsWith('*')) {
 		return <BoldWord stroke={true} item={item} frame={frame} />;
 	} else if (item.text.startsWith('$') && item.text.endsWith('$')) {
 		return <LatexWord stroke={true} item={item} frame={frame} />;
-	}
-	else {
-		return <ClassicalWord stroke={true} item={item} frame={frame} />;
+	} else {
+		return <ClassicalWord item={item} frame={frame} />;
 	}
 }
 
 export const ClassicalWord: React.FC<{
 	item: SubtitleItem;
 	frame: number;
-	stroke?: boolean;
-}> = ({ item, frame, stroke = true }) => {
+}> = ({ item, frame }) => {
 	const opacity = interpolate(frame, [item.start, item.start + 15], [0, 1], {
 		extrapolateLeft: 'clamp',
 		extrapolateRight: 'clamp',
@@ -45,12 +39,11 @@ export const ClassicalWord: React.FC<{
 	return (
 		<span
 			style={{
-				display: 'inline-block',
 				opacity,
 				translate: `0 ${shiftY}em`,
 				paintOrder: 'stroke fill',
 			}}
-			className="text-black"
+			className="text-black inline-block will-change-transform transform-gpu"
 		>
 			{item.text}
 		</span>
@@ -62,7 +55,7 @@ export const BoldWord: React.FC<{
 	item: SubtitleItem;
 	frame: number;
 	stroke?: boolean;
-}> = ({ item, frame, stroke=false }) => {
+}> = ({ item, frame, stroke = false }) => {
 	const opacity = interpolate(frame, [item.start, item.start + 15], [0, 1], {
 		extrapolateLeft: 'clamp',
 		extrapolateRight: 'clamp',
@@ -82,15 +75,13 @@ export const BoldWord: React.FC<{
 	return (
 		<span
 			style={{
-				display: 'inline-block',
 				opacity,
 				translate: `0 ${shiftY}em`,
-				color: "blue",
-				fontWeight: 'bold',
 				WebkitTextStroke: stroke ? '15px black' : undefined,
 				stroke: stroke ? '15px black' : undefined,
 				paintOrder: 'stroke fill',
 			}}
+			className="text-blue-400 inline-block will-change-transform transform-gpu font-bold"
 		>
 			{item.text.slice(1, -1)}
 		</span>
@@ -101,7 +92,7 @@ export const LatexWord: React.FC<{
 	item: SubtitleItem;
 	frame: number;
 	stroke?: boolean;
-}> = ({ item, frame, stroke=false }) => {
+}> = ({ item, frame, stroke = false }) => {
 	const opacity = interpolate(frame, [item.start, item.start + 15], [0, 1], {
 		extrapolateLeft: 'clamp',
 		extrapolateRight: 'clamp',
@@ -118,27 +109,17 @@ export const LatexWord: React.FC<{
 		},
 	);
 
-	// return (
-	// 	<span
-	// 		style={{
-	// 			display: 'inline-block',
-	// 			opacity,
-	// 			translate: `0 ${shiftY}em`,
-	// 		}}
-	// 		dangerouslySetInnerHTML={{ __html: katex.renderToString(item.text.slice(1, -1)) }}
-	// 	/>
-	// );
-
-	// Using InlineMath
 	return (
-		<span style={{
-			display: 'inline-block',
-			opacity,
-			translate: `0 ${shiftY}em`,
-			WebkitTextStroke: stroke ? '15px black' : undefined,
-			stroke: stroke ? '15px black' : undefined,
-			paintOrder: 'stroke fill',
-		}}>
+		<span
+			style={{
+				opacity,
+				translate: `0 ${shiftY}em`,
+				WebkitTextStroke: stroke ? '15px black' : undefined,
+				stroke: stroke ? '15px black' : undefined,
+				paintOrder: 'stroke fill',
+			}}
+			className="text-black inline-block will-change-transform transform-gpu font-bold"
+		>
 			<InlineMath math={item.text.slice(1, -1)} />
 		</span>
 	);

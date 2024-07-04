@@ -1,6 +1,7 @@
 import os
 import tempfile
 from dotenv import load_dotenv
+from lmnt.api import Speech
 from elevenlabs import Voice, VoiceSettings, save
 from elevenlabs.client import ElevenLabs
 import pandas as pd
@@ -20,6 +21,7 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 # Load configuration
+LMNT_API_KEY = os.getenv("LMNT_API_KEY")
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
 ELEVENLABS_VOICE = Voice(
     voice_id=os.getenv("ELEVENLABS_VOICE_ID", default="lxYfHSkYm1EzQzGhdbfc"),
@@ -93,6 +95,38 @@ def make_caption(result: dict) -> list[Caption]:
                 _word = _word[1:]
             caption = Caption(word=_word, start=word["start"], end=word["end"])  # type: ignore
             captions.append(caption)
+    return captions
+
+
+def make_caption_lmnt(result: dict) -> list[Caption]:
+    """Create a list of Caption objects from the result of the LMNT api:
+    [
+        {'text': 'Welcome', 'duration': 0.35, 'start': 0.04},
+        ...
+    ]
+
+    Parameters
+    ----------
+    result : dict
+        Result dictionary from the whisper model
+
+    Returns
+    -------
+    list[Caption]
+        List of Caption objects
+    """
+    captions: list[Caption] = []
+    for word in result:  # type: ignore
+        _word = word["text"]  # type: ignore
+        # Remove leading space if there is one
+        if _word.startswith(" "):
+            _word = _word[1:]
+        if _word == "":
+            continue
+        caption = Caption(
+            word=_word, start=word["start"], end=word["start"] + word["duration"]
+        )  # type: ignore
+        captions.append(caption)
     return captions
 
 
@@ -178,6 +212,89 @@ def generate_audio_and_caption(
     return script_contents
 
 
+async def generate_audio_lmnt(content: str, output_file: str) -> dict:
+    client = Speech(LMNT_API_KEY)
+    # synthesis = asyncio.run(
+    #     client.synthesize(
+    #         content, voice="lily", format="wav", language="en", return_durations=True
+    #     )
+    # )
+    synthesis = await client.synthesize(
+        content, voice="lily", format="wav", language="en", return_durations=True
+    )
+    with open(output_file, "wb") as f:
+        f.write(synthesis["audio"])
+    return synthesis["durations"]
+
+
+async def generate_audio_and_caption_lmnt(
+    script_contents: list[RichContent | Text],
+    temp_dir: Path = Path(tempfile.gettempdir()),
+    offset: float = 0.5,
+) -> list[RichContent | Text]:
+    """Generate audio and caption for each text segment in the script
+
+    Parameters
+    ----------
+    script_contents : list[RichContent  |  Text]
+        List of RichContent or Text objects
+    temp_dir : Path, optional
+        Temporary directory to store the audio files, by default Path(tempfile.gettempdir())
+    offset : float, optional
+        Offset between each text segment, by default 0.5
+
+    Returns
+    -------
+    list[RichContent | Text]
+        List of RichContent or Text objects with audio and caption
+    """
+    # If the temp directory does not exist, create it
+    if not os.path.exists(temp_dir):
+        os.makedirs(temp_dir)
+    # For each segment,
+    # if it is a rich content, do nothing
+    # if it is a text, generate audio and caption and store them in the object
+    for i, script_content in enumerate(script_contents):
+        match script_content:
+            case RichContent(content=content):
+                pass
+            case Text(content=content, audio=None, captions=None):
+                logger.info(f"Generating audio and caption for text {i}")
+                audio_path = (temp_dir / f"audio_{i}.wav").absolute().as_posix()
+                # If audio_path don't exist, generate it
+                # if not os.path.exists(audio_path):
+                logger.info(f"Generating audio {i} at {audio_path}")
+                result = await generate_audio_lmnt(content, audio_path)
+                audio, sr = torchaudio.load(audio_path)
+                script_content.captions = make_caption_lmnt(result)
+                script_content.audio_path = audio_path
+                total_audio_duration = audio.size(1) / sr
+                total_audio_duration += offset
+                script_content.end = total_audio_duration
+                logger.info(
+                    f"Generated audio and caption for text {i}, duration: {total_audio_duration}"
+                )
+
+    offset_fix = 0
+    # Initially all text caption start at time 0
+    # We need to offset them by the end of the previous text
+    for i, script_content in enumerate(script_contents):
+        if not (isinstance(script_content, Text)):
+            continue
+        if not script_content.captions:
+            continue
+        for caption in script_content.captions:
+            caption.start += offset_fix
+            caption.end += offset_fix
+        script_content.start = offset_fix
+        if script_content.end:
+            script_content.end = script_content.end + offset_fix
+        else:
+            script_content.end = script_content.captions[-1].end
+        offset_fix = script_content.end
+    return script_contents
+
+
 def fill_rich_content_time(
     script_contents: list[RichContent | Text],
 ) -> list[RichContent | Text]:
@@ -222,7 +339,7 @@ def fill_rich_content_time(
     return script_contents
 
 
-def export_mp3(text_content: list[Text], out_path: str) -> None:
+def export_mp3(text_content: list[Text], out_path: str, offset: float = 0.5) -> None:
     """Export the audio of the text content to a single mp3 file
 
     Parameters
@@ -240,6 +357,10 @@ def export_mp3(text_content: list[Text], out_path: str) -> None:
 
         path = text.audio_path
         audio, sr = torchaudio.load(path)
+        if offset > 0:
+            # Add offset sec of silence between each audio
+            silence = torch.zeros((1, int(sr * offset)))
+            audio = torch.cat([audio, silence], dim=1)
         audio_all.append(audio)
     audio_all_torch = torch.cat(audio_all, dim=1)
     torchaudio.save(out_path, audio_all_torch, sr)
@@ -270,7 +391,28 @@ def export_srt(full_audio_path: str, out_path: str) -> None:
             index=i,
             start=timedelta(seconds=t.start),
             end=timedelta(seconds=t.end),
-            content=t.word,
+            # Replace any ARX
+            content=t.word.replace("ARXFlicks", "Arxflix")
+            .replace("ARX", "Arx")
+            .replace("ARKFlix", "Arxflix")
+            .replace("ARXFLIX", "Arxflix")
+            .replace("ARXFLICKS", "Arxflix")
+            .replace("ARXflix", "Arxflix")
+            .replace("ARXflicks", "Arxflix")
+            .replace("ARXFLICK", "Arxflix")
+            .replace("ARXFLICKS", "Arxflix")
+            .replace("ARXFLIX", "Arxflix")
+            .replace("ARXFLICKS", "Arxflix")
+            .replace("ArxFLIX", "Arxflix")
+            .replace("ArxFLICKS", "Arxflix")
+            .replace("ArxFLICK", "Arxflix")
+            .replace("ArxFLICKS", "Arxflix")
+            .replace("ArxFLIX", "Arxflix")
+            .replace("ArxFLICKS", "Arxflix")
+            .replace("ArxFLICK", "Arxflix")
+            .replace("ArxFLICKS", "Arxflix")
+            .replace("ArxFLIX", "Arxflix")
+            .replace("ArxFLICKS", "Arxflix"),
         )
         for i, t in enumerate(flatten_caption)
     ]
