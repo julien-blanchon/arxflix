@@ -341,5 +341,8 @@ public/
 **/*.mp3
 **/*.mp4
 **/*.wav
+!/frontend/public/static/LMNT.wav
 client_secrets.json
 local/
+!/frontend/public/static/LMNT_Logo_Full.png
+
