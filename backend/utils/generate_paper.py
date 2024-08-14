@@ -1,7 +1,11 @@
+import requests
+import os
 import urllib.request
 from bs4 import BeautifulSoup
 from markdownify import MarkdownConverter
 from typing import Any
+
+ARXIV_GPT_API_KEY = os.getenv("ARXIV_GPT_API_KEY")
 
 
 def fetch_html(url: str) -> str:
@@ -139,6 +143,25 @@ def process_article(url: str) -> str:
     Returns:
         str: The processed article as a markdown string.
     """
+    if ARXIV_GPT_API_KEY:
+        arxivgpt_url = "https://arxivgpt.p.rapidapi.com/papers/markdown"
+        paper_id = url.split("/")[-1]
+
+        # If remove vX from the paper_id (e.g. 2103.00001v1 -> 2103.00001)
+        if "v" in paper_id:
+            paper_id = paper_id.split("v")[0]
+
+        querystring = {"paper_id": paper_id}
+
+        headers = {
+            "x-rapidapi-key": ARXIV_GPT_API_KEY,
+            "x-rapidapi-host": "arxivgpt.p.rapidapi.com",
+        }
+
+        response = requests.get(arxivgpt_url, headers=headers, params=querystring)
+        markdown_article = response.json()["content"]
+        return markdown_article
+
     html_content = fetch_html(url)
     soup = BeautifulSoup(html_content, "html.parser")
 
