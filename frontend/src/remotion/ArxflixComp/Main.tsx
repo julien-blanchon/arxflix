@@ -25,7 +25,6 @@ loadFont();
 
 
 export const ArxflixComposition: React.FC<CompositionPropsType> = ({
-	introFileName,
 	subtitlesFileName,
 	audioFileName,
 	richContentFileName,
@@ -60,26 +59,16 @@ export const ArxflixComposition: React.FC<CompositionPropsType> = ({
 	}, [handle, subtitlesFileName]);
 
 	useEffect(() => {
-		fetch(introFileName)
-			.then((res) => res.text())
-			.then((text) => {
-				const [title, figure] = text.split('\n');
-				setIntroData({
-					title,
-					figure,
-				});
-				continueRender(handle);
-			})
-			.catch((err) => {
-				console.log('Error fetching intro', err);
-			});
-	}, [handle, introFileName]);
-
-	useEffect(() => {
 		fetch(richContentFileName)
 			.then((res) => res.json())
-			.then((data) => {
+			.then((data: RichContent[]) => {
 				setRichContent(data);
+				const firstFigure = data.find((f) => f.type === 'figure')?.content || '';
+				const firstHeadline = data.find((f) => f.type === 'headline')?.content || '';
+				setIntroData({
+					title: firstHeadline,
+					figure: firstFigure,
+				});
 				continueRender(handle);
 			})
 			.catch((err) => {

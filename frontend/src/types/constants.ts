@@ -4,9 +4,6 @@ import { z } from "zod";
 export const COMP_NAME = "MyComp";
 
 export const CompositionProps = z.object({
-	introFileName: z.string().refine((s) => s.endsWith('.txt'), {
-		message: 'Intro file must be a .txt file',
-	}),
 	audioOffsetInSeconds: z.number().min(0),
 	subtitlesFileName: z.string().refine((s) => s.endsWith('.srt'), {
 		message: 'Subtitles file must be a .srt file',
@@ -32,8 +29,6 @@ export const CompositionProps = z.object({
 export type CompositionPropsType = z.infer<typeof CompositionProps>;
 
 export const defaultCompositionProps: CompositionPropsType = {
-	// Intro settings
-	introFileName: staticFile('1512.03385/intro.txt'),
     // Audio settings
     audioOffsetInSeconds: 0,
 

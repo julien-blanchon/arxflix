@@ -6,6 +6,7 @@ import { StepLabel } from "./step-label";
 import type { StepSharedProps } from "./types";
 import { useStepper } from "./use-stepper";
 
+/* eslint-disable react/display-name */
 const HorizontalStep = React.forwardRef<HTMLDivElement, StepSharedProps>(
 	(props, ref) => {
 		const {

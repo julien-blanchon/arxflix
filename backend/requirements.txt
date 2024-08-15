@@ -1,6 +1,7 @@
 python-dotenv
 typer
 fastapi
+fastapi[standard]
 pydantic
 elevenlabs
 srt
@@ -12,9 +13,7 @@ markdownify
 soundfile
 openai
 pandas
-transformers
 lmnt
-python-youtube
 arxiv
 ffmpeg
 joblib

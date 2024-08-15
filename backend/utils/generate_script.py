@@ -1,9 +1,7 @@
+from typing import Literal
 from openai import OpenAI
 import requests
 import os
-
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o")
 
 SYSTEM_PROMPT = r"""
 You're Arxflix an AI Researcher and Content Creator on Youtube who specializes in summarizing academic papers. 
@@ -30,24 +28,9 @@ Here an example what you need to produce:
 \Headline: The Problem with Traditional Scaling
 ...
 """
-SYSTEM_PROMPT_INTRO = r"""
-You're a researcher that summerize research contain on Youtube.
-Now you need a name and a figure for the video thumbnail.
-The title should be appealing, yet not to far from the original paper title.
-You can use emojis for the title but keep it professional.
-
-For the figure, provide the link with https:// and the .png extension.
-Your output follow this format:
-The Selected Title
-The Selected Figure Link
-
-Your ouput will have just two lines, without description.
-The first \Headline of the reference is a very good starting point for the title.
-Here is the script you wrote, as a reference:
-"""
 
 
-def correct_result_link(script: str, url: str) -> str:
+def _correct_result_link(script: str, url: str) -> str:
     """Correct generated links in a research paper script.
 
     Parameters:
@@ -105,31 +88,33 @@ def correct_result_link(script: str, url: str) -> str:
     return "\n".join(split_script)
 
 
-def process_script(paper: str, url: str) -> tuple[str, str]:
+def _process_script_gpt(paper: str) -> str:
     """Generate a video script for a research paper using OpenAI's GPT-4o model.
 
     Parameters
     ----------
     paper : str
         A research paper in markdown format. (For the moment, it's HTML)
-    url : str
-        The url of the paper
 
     Returns
     -------
     str
         The generated video script.
-    str
-        The generated video script intro.
 
     Raises
     ------
     ValueError
         If no result is returned from OpenAI.
     """
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+    OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o")
+
+    if not OPENAI_API_KEY:
+        raise ValueError("You need to set the OPENAI_API_KEY environment variable.")
+
     openai_client = OpenAI(api_key=OPENAI_API_KEY)
     response = openai_client.chat.completions.create(
-        model="gpt-4o",
+        model=OPENAI_MODEL,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": paper},
@@ -140,38 +125,29 @@ def process_script(paper: str, url: str) -> tuple[str, str]:
     if not result:
         raise ValueError("No result returned from OpenAI.")
 
-    # response_intro = openai_client.chat.completions.create(
-    #     model="gpt-4o",
-    #     messages=[
-    #         {"role": "system", "content": SYSTEM_PROMPT_INTRO},
-    #         {"role": "user", "content": result},
-    #     ],
-    # )
-    # result_intro = response_intro.choices[0].message.content
+    # result = _correct_result_link(result, url)
+    return result
 
-    # if not result_intro:
-    #     raise ValueError("No intro returned from OpenAI.")
 
-    # Other way to get the intro
-    result_lines = result.split("\n")
-    # first \Headline
-    first_headline = result_lines.index(
-        [line for line in result_lines if line.startswith(r"\Headline")][0]
-    )
-    first_figure = result_lines.index(
-        [line for line in result_lines if line.startswith(r"\Figure")][0]
-    )
-    first_headline = (
-        result_lines[first_headline]
-        .replace(r"\Headline: ", "")
-        .strip()
-        .replace("\n", "")
-    )
-    first_figure = (
-        result_lines[first_figure].replace(r"\Figure: ", "").strip().replace("\n", "")
-    )
-    result_intro = first_headline + "\n" + first_figure
+def process_script(method: Literal["openai"], paper_markdown: str) -> str:
+    """Generate a video script for a research paper.
 
-    # script = correct_result_link(result, url)
-    script = result
-    return script, result_intro
+    Parameters
+    ----------
+    paper_markdown : str
+        A research paper in markdown format.
+
+    Returns
+    -------
+    str
+        The generated video script.
+
+    Raises
+    ------
+    ValueError
+        If no result is returned from OpenAI.
+    """
+    if method == "openai":
+        return _process_script_gpt(paper_markdown)
+    else:
+        raise ValueError("Invalid method. Please choose 'openai'.")

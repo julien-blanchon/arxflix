@@ -23,13 +23,13 @@ export const CurrentFigure: React.FC<{
 	const config = useVideoConfig();
 	const { fps } = config;
 
-	// useEffect(() => {
-	// 	richContent.forEach((f) => {
-	// 		if (f.type === 'figure') {
-	// 			preloadImage(f.content);
-	// 		}
-	// 	});
-	// }, [richContent]);
+	useEffect(() => {
+		richContent.forEach((f) => {
+			if (f.type === 'figure') {
+				preloadImage(f.content);
+			}
+		});
+	}, [richContent]);
 
 	const currentFigure = richContent.find((f) => frame >= (f.start * fps) && frame <= (f.end * fps));
 	if (!currentFigure) {

@@ -30,6 +30,7 @@ const iconVariants = cva("", {
 	},
 });
 
+/* eslint-disable react/display-name */
 const StepIcon = React.forwardRef<HTMLDivElement, StepIconProps>(
 	(props, ref) => {
 		const { size } = useStepper();

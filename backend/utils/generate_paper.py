@@ -3,9 +3,20 @@ import os
 import urllib.request
 from bs4 import BeautifulSoup
 from markdownify import MarkdownConverter
-from typing import Any
+from typing import Any, Literal
 
-ARXIV_GPT_API_KEY = os.getenv("ARXIV_GPT_API_KEY")
+
+def _get_arxiv_html_paper_url(paper_id: str) -> str | None:
+    url = f"https://ar5iv.labs.arxiv.org/html/{paper_id}/"
+    response = requests.get(url)
+    if "arxiv.org/abs/" not in response.url:
+        return url
+
+    url = f"https://arxiv.org/html/{paper_id}"
+    response = requests.get(url)
+    if response.status_code == 200:
+        return url
+    return None
 
 
 def fetch_html(url: str) -> str:
@@ -133,34 +144,51 @@ def strip_attributes(soup: BeautifulSoup) -> BeautifulSoup:
     return soup
 
 
-def process_article(url: str) -> str:
-    """Process an article from a given URL and save it as a markdown file.
-    You need to give an `https://ar5iv.org/html` or `https://arxiv.org/html` URL.
+def process_article_arxiv_gpt(paper_id: str) -> str:
+    """Process an article from directly from the ArXiv PDF using the ArXiv GPT API.
+    You need to give the paper_id of the article.
 
     Args:
-        url (str): The URL of the article.
+        paper_id (str): The paper_id of the article.
 
     Returns:
         str: The processed article as a markdown string.
     """
-    if ARXIV_GPT_API_KEY:
-        arxivgpt_url = "https://arxivgpt.p.rapidapi.com/papers/markdown"
-        paper_id = url.split("/")[-1]
+    ARXIV_GPT_API_KEY = os.getenv("ARXIV_GPT_API_KEY")
+    if not ARXIV_GPT_API_KEY:
+        raise ValueError("You need to set the ARXIV_GPT_API_KEY environment variable.")
 
-        # If remove vX from the paper_id (e.g. 2103.00001v1 -> 2103.00001)
-        if "v" in paper_id:
-            paper_id = paper_id.split("v")[0]
+    arxivgpt_url = "https://arxivgpt.p.rapidapi.com/papers/markdown"
 
-        querystring = {"paper_id": paper_id}
+    # If remove vX from the paper_id (e.g. 2103.00001v1 -> 2103.00001)
+    if "v" in paper_id:
+        paper_id = paper_id.split("v")[0]
 
-        headers = {
-            "x-rapidapi-key": ARXIV_GPT_API_KEY,
-            "x-rapidapi-host": "arxivgpt.p.rapidapi.com",
-        }
+    querystring = {"paper_id": paper_id}
 
-        response = requests.get(arxivgpt_url, headers=headers, params=querystring)
-        markdown_article = response.json()["content"]
-        return markdown_article
+    headers = {
+        "x-rapidapi-key": ARXIV_GPT_API_KEY,
+        "x-rapidapi-host": "arxivgpt.p.rapidapi.com",
+    }
+
+    response = requests.get(arxivgpt_url, headers=headers, params=querystring)
+    markdown_article = response.json()["content"]
+    return markdown_article
+
+
+def process_article_arxiv_html(paper_id: str) -> str:
+    """Process an article from a given URL and save it as a markdown file.
+
+    Args:
+        paper_id (str): The paper_id of the article.
+
+    Returns:
+        str: The processed article as a markdown string.
+    """
+    url = _get_arxiv_html_paper_url(paper_id)
+
+    if not url:
+        raise ValueError("No HTML content found for the given paper ID.")
 
     html_content = fetch_html(url)
     soup = BeautifulSoup(html_content, "html.parser")
@@ -181,5 +209,26 @@ def process_article(url: str) -> str:
     markdown_article = markdown_article.replace("\n\n\n", "\n\n").replace(
         "\n\n\n", "\n\n"
     )
-    markdown_article = markdown_article.replace("![](", f"![]({url}/")
+    url_root = url.replace("http://", "").replace("https://", "").split("/")[0]
+    markdown_article = markdown_article.replace("![](", f"![]({url_root}/")
     return markdown_article
+
+
+def process_article(method: Literal["arxiv_gpt", "arxiv_html"], paper_id: str) -> str:
+    """Process an article from a given URL and save it as a markdown file.
+
+    Args:
+        method (Literal["arxiv_gpt", "arxiv_html"]): The method to use for processing the article.
+        paper_id (str): The paper_id of the article.
+
+    Returns:
+        str: The processed article as a markdown string.
+    """
+    if method == "arxiv_gpt":
+        return process_article_arxiv_gpt(paper_id)
+    elif method == "arxiv_html":
+        return process_article_arxiv_html(paper_id)
+    else:
+        raise ValueError(
+            "Invalid article method. Please choose either 'arxiv_gpt' or 'arxiv_html'."
+        )

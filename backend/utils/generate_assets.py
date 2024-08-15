@@ -1,5 +1,7 @@
+import asyncio
 import os
 import tempfile
+from typing import Literal
 from dotenv import load_dotenv
 from lmnt.api import Speech
 from elevenlabs import Voice, VoiceSettings, save
@@ -13,29 +15,15 @@ from datetime import timedelta
 from pathlib import Path
 import logging
 
-from backend.types import Text, Caption, Figure, Equation, Headline, RichContent
+from backend.type import Text, Caption, Figure, Equation, Headline, RichContent
 
 logger = logging.getLogger(__name__)
 
 # Load .env file
 load_dotenv()
 
-# Load configuration
-LMNT_API_KEY = os.getenv("LMNT_API_KEY")
-ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
-ELEVENLABS_VOICE = Voice(
-    voice_id=os.getenv("ELEVENLABS_VOICE_ID", default="lxYfHSkYm1EzQzGhdbfc"),
-    settings=VoiceSettings(
-        stability=float(os.getenv("ELEVENLABS_STABILITY", default=0.35)),
-        similarity_boost=float(os.getenv("ELEVENLABS_SIMILARITY_BOOST", default=0.8)),
-        style=0.0,
-        use_speaker_boost=True,
-    ),
-)
-ELEVENLABS_MODEL = os.getenv("ELEVENLABS_MODEL", default="eleven_turbo_v2")
 
-
-def parse_script(script: str) -> list[RichContent | Text]:
+def _parse_script(script: str) -> list[RichContent | Text]:
     """Parse the script and return a list of RichContent or Text objects
 
     Parameters
@@ -73,7 +61,7 @@ def parse_script(script: str) -> list[RichContent | Text]:
     return content
 
 
-def make_caption(result: dict) -> list[Caption]:
+def _make_caption_whisper(result: dict) -> list[Caption]:
     """Create a list of Caption objects from the result of the whisper model
 
     Parameters
@@ -88,17 +76,17 @@ def make_caption(result: dict) -> list[Caption]:
     """
     captions: list[Caption] = []
     for segment in result["segments"]:
-        for word in segment["words"]:  # type: ignore
-            _word = word["word"]  # type: ignore
+        for word in segment["words"]:
+            _word = word["word"]
             # Remove leading space if there is one
             if _word.startswith(" "):
                 _word = _word[1:]
-            caption = Caption(word=_word, start=word["start"], end=word["end"])  # type: ignore
+            caption = Caption(word=_word, start=word["start"], end=word["end"])
             captions.append(caption)
     return captions
 
 
-def make_caption_lmnt(result: dict) -> list[Caption]:
+def _make_caption_lmnt(result: dict) -> list[Caption]:
     """Create a list of Caption objects from the result of the LMNT api:
     [
         {'text': 'Welcome', 'duration': 0.35, 'start': 0.04},
@@ -116,8 +104,8 @@ def make_caption_lmnt(result: dict) -> list[Caption]:
         List of Caption objects
     """
     captions: list[Caption] = []
-    for word in result:  # type: ignore
-        _word = word["text"]  # type: ignore
+    for word in result:
+        _word = word["text"]
         # Remove leading space if there is one
         if _word.startswith(" "):
             _word = _word[1:]
@@ -125,16 +113,17 @@ def make_caption_lmnt(result: dict) -> list[Caption]:
             continue
         caption = Caption(
             word=_word, start=word["start"], end=word["start"] + word["duration"]
-        )  # type: ignore
+        )
         captions.append(caption)
     return captions
 
 
-def generate_audio_and_caption(
+def _generate_audio_and_caption_elevenlabs(
     script_contents: list[RichContent | Text],
     temp_dir: Path = Path(tempfile.gettempdir()),
 ) -> list[RichContent | Text]:
-    """Generate audio and caption for each text segment in the script
+    """Generate audio and caption for each text segment in the script.
+    Use Whisper model to generate the captions
 
     Parameters
     ----------
@@ -148,6 +137,8 @@ def generate_audio_and_caption(
     list[RichContent | Text]
         List of RichContent or Text objects with audio and caption
     """
+    ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
+
     elevenlabs_client = ElevenLabs(api_key=ELEVENLABS_API_KEY)
     # If the temp directory does not exist, create it
     if not os.path.exists(temp_dir):
@@ -187,7 +178,7 @@ def generate_audio_and_caption(
                     task="transcribe",
                 )
                 result = model.transcribe(audio_path, word_timestamps=True)
-                script_content.captions = make_caption(result)
+                script_content.captions = _make_caption_whisper(result)
                 script_content.audio_path = audio_path
                 total_audio_duration = audio.size(1) / sr
                 script_content.end = total_audio_duration
@@ -212,22 +203,20 @@ def generate_audio_and_caption(
     return script_contents
 
 
-async def generate_audio_lmnt(content: str, output_file: str) -> dict:
+def _generate_audio_lmnt(content: str, output_file: str) -> dict:
+    LMNT_API_KEY = os.getenv("LMNT_API_KEY")
     client = Speech(LMNT_API_KEY)
-    # synthesis = asyncio.run(
-    #     client.synthesize(
-    #         content, voice="lily", format="wav", language="en", return_durations=True
-    #     )
-    # )
-    synthesis = await client.synthesize(
-        content, voice="lily", format="wav", language="en", return_durations=True
+    synthesis = asyncio.run(
+        client.synthesize(
+            content, voice="lily", format="wav", language="en", return_durations=True
+        )
     )
     with open(output_file, "wb") as f:
         f.write(synthesis["audio"])
     return synthesis["durations"]
 
 
-async def generate_audio_and_caption_lmnt(
+def _generate_audio_and_caption_lmnt(
     script_contents: list[RichContent | Text],
     temp_dir: Path = Path(tempfile.gettempdir()),
     offset: float = 0.5,
@@ -264,9 +253,9 @@ async def generate_audio_and_caption_lmnt(
                 # If audio_path don't exist, generate it
                 # if not os.path.exists(audio_path):
                 logger.info(f"Generating audio {i} at {audio_path}")
-                result = await generate_audio_lmnt(content, audio_path)
+                result = _generate_audio_lmnt(content, audio_path)
                 audio, sr = torchaudio.load(audio_path)
-                script_content.captions = make_caption_lmnt(result)
+                script_content.captions = _make_caption_lmnt(result)
                 script_content.audio_path = audio_path
                 total_audio_duration = audio.size(1) / sr
                 total_audio_duration += offset
@@ -384,7 +373,7 @@ def export_srt(full_audio_path: str, out_path: str) -> None:
         language="en", fp16=True, without_timestamps=False, task="transcribe"
     )
     result = model.transcribe(full_audio_path, word_timestamps=True)
-    flatten_caption = make_caption(result)
+    flatten_caption = _make_caption_whisper(result)
     # Generate SRT file from the caption
     subs = [
         srt.Subtitle(
@@ -444,3 +433,30 @@ def export_rich_content_json(rich_content: list[RichContent], out_path: str) -> 
         rich_content_dict.append(content_dict)
     df = pd.DataFrame(rich_content_dict)
     df.to_json(out_path, orient="records")
+
+
+def generate_audio_and_caption(
+    method: Literal["elevenlabs", "lmnt"], script: str
+) -> list[RichContent | Text]:
+    """Generate audio and caption for the script
+
+    Parameters
+    ----------
+    method : Literal["elevenlabs", "lmnt"]
+        Method to generate audio and caption
+    script : str
+        Script to generate audio and caption
+
+    Returns
+    -------
+    list[RichContent | Text]
+        List of RichContent or Text objects with audio and caption
+    """
+    script_contents = _parse_script(script)
+    if method == "elevenlabs":
+        script_contents = _generate_audio_and_caption_elevenlabs(script_contents)
+    elif method == "lmnt":
+        script_contents = _generate_audio_and_caption_lmnt(script_contents)
+    else:
+        raise ValueError(f"Unknown method: {method}")
+    return script_contents

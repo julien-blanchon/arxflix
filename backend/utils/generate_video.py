@@ -28,7 +28,6 @@ def get_free_port():
 @dataclass
 class CompositionProps:
     durationInSeconds: int = 5
-    introFileName: str = "frontend/public/intro.txt"
     subtitlesFileName: str = "frontend/public/output.srt"
     audioFileName: str = "frontend/public/audio.wav"
     richContentFileName: str = "frontend/public/output.json"
@@ -88,7 +87,6 @@ def process_video(
         sleep(60)
         logger.info(f"Exposed directory {input}")
         composition_props = CompositionProps(
-            introFileName=f"http://localhost:{free_port}/intro.txt",
             subtitlesFileName=f"http://localhost:{free_port}/subtitles.srt",
             audioFileName=f"http://localhost:{free_port}/audio.wav",
             richContentFileName=f"http://localhost:{free_port}/rich.json",
