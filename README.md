@@ -25,7 +25,12 @@ Example:
 
   ``` shell
   pip install -r requirements.txt
+  brew install pnpm
   ```
+
+  for mac users also install : 
+    brew install ffmpeg
+    brew install pnpm
 
 5. Run the backend server by executing:
 

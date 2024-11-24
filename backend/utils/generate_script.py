@@ -19,14 +19,24 @@ The script sould be formated following the followings rules below:
 - For \Equation: Don't use $ or \[, the latex context is automatically detected.
 - For \Equation: Always write everything in the same line, multiple lines will generate an error. Don't make table.
 - You should always follow the syntax, don't start a line without a slash (\) command. Don't hallucinate figures.
+- \Figure starts by https://arxiv.org/html/xxxx.aaaa/  where xxxx.aaaa is the id of the paper.
 
-Here an example what you need to produce:
+Exemple of \Firgure :
+![](arxiv.org/x1.png) should be rendered as https://arxiv.org/html/xxxx.aaaa/x1.png
+![](extracted/5604403/figure/moe_intro.png) should be rendered as https://arxiv.org/html/xxxx.aaaa/extracted/5604403/figure/moe_intro.png
+
+
+
+Here is an example what you need to produce for paper id 2405.11273:
+<exemple>
 \Headline: Uni-MoE: Scaling Unified Multimodal LLMs with Mixture of Experts
 \Text: Welcome back to Arxflix! Today, we’re diving into an exciting new paper titled "Uni-MoE: Scaling Unified Multimodal LLMs with Mixture of Experts". This research addresses the challenge of efficiently scaling multimodal large language models (MLLMs) to handle a variety of data types like text, images, audio, and video.
-\Figure: https://...
+\Figure: https://arxiv.org/html/2405.11273/extracted/5604403/figure/moe_intro.png
 \Text: Here’s a snapshot of the Uni-MoE model, illustrating its ability to handle multiple modalities using the Mixture of Experts (MoE) architecture. Let’s break down the main points of this paper.
 \Headline: The Problem with Traditional Scaling
 ...
+</exemple>
+
 """
 
 
@@ -117,8 +127,9 @@ def _process_script_gpt(paper: str) -> str:
         model=OPENAI_MODEL,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": paper},
+            {"role": "user", "content":  paper},
         ],
+        temperature=0,
     )
     result = response.choices[0].message.content
 
