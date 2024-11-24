@@ -17,3 +17,4 @@ lmnt
 arxiv
 ffmpeg
 joblib
+instructor
