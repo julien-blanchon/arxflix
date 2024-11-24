@@ -23,14 +23,16 @@ Example:
 3. Create a virtual environment.
 4. Install the backend dependencies by running the following command:
 
-  ``` shell
+  ```shell
   pip install -r requirements.txt
   brew install pnpm
   ```
 
-  for mac users also install : 
+  for mac users also install :
+  ```shell
     brew install ffmpeg
     brew install pnpm
+  ```
 
 5. Run the backend server by executing:
 
@@ -46,7 +48,7 @@ Example:
 2. Navigate to the frontend folder.
 3. Install the dependencies by running the following command:
 
-  ``` shell
+  ```shell
   pnpm install
   ```
 
