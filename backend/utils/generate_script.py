@@ -19,6 +19,7 @@ Generate a script for a mid-short video (5-6 minutes or less than 6000 words) on
 <style_instructions>
 The script should be engaging, clear, and concise, effectively communicating the content of the paper. 
 The video should give a good overview of the paper in the least amount of time possible, with short sentences that fit well for a dynamic Youtube video.
+The overall goal of the video is to make research papers more accessible and understandable to a wider audience, while maintaining academic rigor.
 </style_instructions>
 
 <format_instructions>
@@ -35,7 +36,7 @@ The script sould be formated following the followings rules below:
         - For Equation: Don't use $ or [, the latex context is automatically detected.
         - For Equation: Always write everything in the same line, multiple lines will generate an error. Don't make table.
         - Don't hallucinate figures.
-        - Figure starts by https://arxiv.org/html/xxxx.aaaa/  where xxxx.aaaa is the id of the paper.
+        - Figure starts by https://arxiv.org/html/xxxx.aaaa/  where xxxx.aaaa is the id of the paper. Each Figure is followed by a text which explains it point.
 </format_instructions>
 
 <exemple_of_Firgure>
@@ -77,12 +78,27 @@ Here is an exampl of what you need to produce for paper id 2405.11273:
             "content": "The Problem with Traditional Scaling",
             "position": 4
         },
+        {
+            "component_type": "Text",
+            "content": "Scaling multimodal models traditionally incurs high computational costs. Conventional models process each input with all model parameters, leading to dense and inefficient computations.",
+            "position": 5
+        },
+        {
+            "component_type": "Text",
+            "content": "Enter the Mixture of Experts (MoE). Unlike dense models, MoE activates only a subset of experts for each input. This sparse activation reduces computational overhead while maintaining performance.",
+            "position": 6
+        },
+        {
+            "component_type": "Text",
+            "content": "Previous works have used MoE in text and image-text models but limited their scope to fewer experts and modalities. This paper pioneers a unified MLLM leveraging MoE across multiple modalities.",
+            "position": 7
+        },
         ...
     ]
 }
 </exemple>
 
-Attention : The paper idead in the precedent instruction are just exemples. Don't confuse it with the correct paper ID you ll receve.
+Attention : The paper_id in the precedent instruction are just exemples. Don't confuse it with the correct paper ID you ll receve.
 
 """
 
