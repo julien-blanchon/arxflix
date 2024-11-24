@@ -14,6 +14,7 @@ import srt
 from datetime import timedelta
 from pathlib import Path
 import logging
+import time
 
 from backend.type import Text, Caption, Figure, Equation, Headline, RichContent
 
@@ -151,24 +152,24 @@ def _generate_audio_and_caption_elevenlabs(
             case RichContent(content=content):
                 pass
             case Text(content=content, audio=None, captions=None):
-                audio_path = (temp_dir / f"audio_{i}.wav").absolute().as_posix()
+                audio_path = (temp_dir / f"audio_{i}.wav").absolute().as_posix()#TODO change this for a more unique filename
                 # If audio_path don't exist, generate it
-                if not os.path.exists(audio_path):
-                    logger.info(f"Generating audio {i} at {audio_path}")
-                    script_content.audio = elevenlabs_client.generate(
-                        text=content,
-                        voice=Voice(
-                            voice_id="lxYfHSkYm1EzQzGhdbfc",
-                            settings=VoiceSettings(
-                                stability=0.35,
-                                similarity_boost=0.8,
-                                style=0.0,
-                                use_speaker_boost=True,
-                            ),
+                #if not os.path.exists(audio_path):
+                logger.info(f"Generating audio {i} at {audio_path}")
+                script_content.audio = elevenlabs_client.generate(
+                    text=content,
+                    voice=Voice(
+                        voice_id="cgSgspJ2msm6clMCkdW9",
+                        settings=VoiceSettings(
+                            stability=0.35,
+                            similarity_boost=0.8,
+                            style=0.0,
+                            use_speaker_boost=True,
                         ),
-                        model="eleven_turbo_v2",
-                    )
-                    save(script_content.audio, audio_path)
+                    ),
+                    model="eleven_turbo_v2",
+                )
+                save(script_content.audio, audio_path)
                 audio, sr = torchaudio.load(audio_path)
                 model = whisper.load_model("base.en")
                 option = whisper.DecodingOptions(
@@ -182,6 +183,7 @@ def _generate_audio_and_caption_elevenlabs(
                 script_content.audio_path = audio_path
                 total_audio_duration = audio.size(1) / sr
                 script_content.end = total_audio_duration
+        time.sleep(3)
 
     offset = 0
     # Initially all text caption start at time 0
