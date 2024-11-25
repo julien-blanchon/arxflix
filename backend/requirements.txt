@@ -18,3 +18,4 @@ arxiv
 ffmpeg
 joblib
 instructor
+google-generativeai
