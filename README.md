@@ -1,3 +1,4 @@
+
 ![ArXFlix](./assets/image/llama6.png)
 
 # ArXFlix
@@ -16,61 +17,99 @@ Example:
 
 ## Installation and Usage
 
+### Prerequisites
+
+- **Backend:** Python 3.9+, FFmpeg, pnpm
+- **Frontend:** Node.js, pnpm
+
 ### Backend
 
-1. Clone the repository.
-2. Navigate to the backend folder.
-3. Create a virtual environment.
-4. Install the backend dependencies by running the following command:
+1. **Clone the repository:**
 
-  ```shell
-  pip install -r requirements.txt
-  brew install pnpm
-  ```
+   ```bash
+   git clone https://github.com/julien-blanchon/arxflix.git  # Replace with your repository URL
+   cd arxflix
+   ```
 
-  for mac users also install :
-  ```shell
-    brew install ffmpeg
-    brew install pnpm
-  ```
+2. **Navigate to the backend folder:**
 
-5. Run the backend server by executing:
+   ```bash
+   cd backend
+   ```
 
-  ``` shell
-  fastapi run main.py
-  ```
+3. **Create and activate a virtual environment (recommended):**
 
-6. The backend server should be running on PORT 8000.
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate  # For Linux/macOS
+   .venv\Scripts\activate  # For Windows
+   ```
+
+4. **Install backend dependencies:**
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+5. **Install FFmpeg and pnpm (if not already installed):**
+
+   ```bash
+   brew install ffmpeg pnpm # macOS
+   sudo apt-get install ffmpeg pnpm # Debian/Ubuntu - adjust for your distribution
+   ```
+
+6. **Run the backend server:**
+
+   ```bash
+   fastapi run main.py
+   ```
+
+   The backend server should now be running on port 8000.
+
 
 ### Frontend
 
-1. Clone the repository.
-2. Navigate to the frontend folder.
-3. Install the dependencies by running the following command:
+1. **Navigate to the frontend folder:**
 
-  ```shell
-  pnpm install
-  ```
+   ```bash
+   cd ../frontend
+   ```
 
-4. Run the Frontend AppRun the Frontend App:
+2. **Install frontend dependencies:**
 
-  ```shell
-  pnpm dev
-  ```
+   ```bash
+   pnpm install
+   ```
 
-5. The client app should be running on PORT 3000.
+3. **Generate the API client:**
+
+   ```bash
+   pnpm generate-client
+   ```
+
+4. **Run the frontend development server:**
+
+   ```bash
+   pnpm dev
+   ```
+
+   The frontend app should now be running on port 3000 or 3001.
+
+
 
 ## Contributing
 
-If you’d like to contribute to this project, please follow these steps:
+Contributions are welcome! Please follow these steps:
 
 1. Fork the repository.
-2. Create a new branch.
-3. Make your changes.
-4. Commit your changes.
-5. Push to the branch.
-6. Open a pull request.
+2. Create a new branch for your feature or bug fix.
+3. Make your changes and commit them.
+4. Push your branch to your forked repository.
+5. Open a pull request against the main branch of the original repository.
+
 
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=julien-blanchon/arxflix&type=Date)](https://star-history.com/#julien-blanchon/arxflix&Date)
+
+
