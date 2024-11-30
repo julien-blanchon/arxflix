@@ -143,7 +143,7 @@ export default function Home() {
     const response = await generateAssetsGenerateAssetsPost({
       client: client,
       query: { 
-        method: "lmnt", 
+        method: "elevenlabs", 
         script: script,
         mp3_output: `../frontend/public/${_folder}/audio.wav`,
         rich_output: `../frontend/public/${_folder}/rich.json`,
