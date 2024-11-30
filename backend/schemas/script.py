@@ -46,7 +46,7 @@ class ScriptComponent(BaseModel):
                 raise ValueError("Figure URL must start with 'https://arxiv.org/html/' followed by paper ID")
         
         elif component_type == ScriptComponentType.EQUATION:
-            if '$' in values.content or r'\[' in v or '\n' in v:
+            if '$' in values.content or r'\[' in values.content or '\n' in values.content:
                 raise ValueError("Equation must not contain $, \\[, or multiple lines")
         
         elif component_type == ScriptComponentType.TEXT:
