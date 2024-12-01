@@ -19,3 +19,6 @@ ffmpeg
 joblib
 instructor
 google-generativeai
+groq
+deepgram-sdk
+mlx_whisper

@@ -1,5 +1,6 @@
 import asyncio
 import os
+import sys
 import tempfile
 from typing import Literal
 from dotenv import load_dotenv
@@ -15,6 +16,13 @@ from datetime import timedelta
 from pathlib import Path
 import logging
 import time
+import mlx_whisper
+from groq import Groq
+from deepgram import (
+    DeepgramClient,
+    PrerecordedOptions,
+    FileSource,
+)
 
 from backend.type import Text, Caption, Figure, Equation, Headline, RichContent
 
@@ -86,6 +94,29 @@ def _make_caption_whisper(result: dict) -> list[Caption]:
             captions.append(caption)
     return captions
 
+def _make_caption_deepgram(result: dict) -> list[Caption]:
+    """Create a list of Caption objects from the result of the whisper model
+
+    Parameters
+    ----------
+    result : dict
+        Result dictionary from the whisper model
+
+    Returns
+    -------
+    list[Caption]
+        List of Caption objects
+    """
+    captions: list[Caption] = []
+    for word in result:
+        _word = word["word"]
+        # Remove leading space if there is one
+        if _word.startswith(" "):
+            _word = _word[1:]
+        caption = Caption(word=_word, start=word["start"], end=word["end"])
+        captions.append(caption)
+    return captions
+
 
 def _make_caption_lmnt(result: dict) -> list[Caption]:
     """Create a list of Caption objects from the result of the LMNT api:
@@ -139,7 +170,7 @@ def _generate_audio_and_caption_elevenlabs(
         List of RichContent or Text objects with audio and caption
     """
     ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
-
+    DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY")
     elevenlabs_client = ElevenLabs(api_key=ELEVENLABS_API_KEY)
     # If the temp directory does not exist, create it
     if not os.path.exists(temp_dir):
@@ -170,20 +201,51 @@ def _generate_audio_and_caption_elevenlabs(
                     model="eleven_turbo_v2",
                 )
                 save(script_content.audio, audio_path)
-                audio, sr = torchaudio.load(audio_path)
-                model = whisper.load_model("base.en")
-                option = whisper.DecodingOptions(
-                    language="en",
-                    fp16=True,
-                    without_timestamps=False,
-                    task="transcribe",
-                )
-                result = model.transcribe(audio_path, word_timestamps=True)
-                script_content.captions = _make_caption_whisper(result)
+
+                if DEEPGRAM_API_KEY=="":
+                    audio, sr = torchaudio.load(audio_path)
+                    model = whisper.load_model("base.en")
+                    option = whisper.DecodingOptions(
+                        language="en",
+                        fp16=True,
+                        without_timestamps=False,
+                        task="transcribe",
+                    )
+                    result = model.transcribe(audio_path, word_timestamps=True)
+                    script_content.captions = _make_caption_whisper(result)
+                
+                elif (sys.platform == 'darwin'
+                and hasattr(os, 'uname') 
+                and os.uname().machine in ('arm64', 'aarch64')):
+                    result = mlx_whisper.transcribe(audio=audio_path,word_timestamps=True)
+                    script_content.captions = _make_caption_whisper(result)
+                    
+                else:
+                    deepgram = DeepgramClient()
+                    with open(audio_path, "rb") as file:
+                        buffer_data = file.read()
+
+                    payload: FileSource = {
+                        "buffer": buffer_data,
+                    }
+
+                    #STEP 2: Configure Deepgram options for audio analysis
+                    options = PrerecordedOptions(
+                        model="nova-2",
+                        smart_format=True,
+                    )
+
+                    # STEP 3: Call the transcribe_file method with the text payload and options
+                    response = deepgram.listen.rest.v("1").transcribe_file(payload, options)
+                    result = response.to_dict()["results"]["channels"][0]["alternatives"][0]["words"]
+                    script_content.captions = _make_caption_deepgram(result)
+
                 script_content.audio_path = audio_path
                 total_audio_duration = audio.size(1) / sr
                 script_content.end = total_audio_duration
-        time.sleep(3)
+
+
+        time.sleep(3) ##not to be ratelimated by providers
 
     offset = 0
     # Initially all text caption start at time 0
