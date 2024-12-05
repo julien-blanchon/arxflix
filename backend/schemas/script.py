@@ -3,6 +3,7 @@ from typing import List, Literal, Union
 from enum import Enum
 import re
 import logging
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -139,6 +140,19 @@ def generate_model_with_context_check(paper_id : str ):
             for comp in values.components:
                 if comp.component_type == ScriptComponentType.FIGURE:
                     comp.content = comp.content.replace(comp.content.split('/')[4], values.paper_id)
+
+            for comp in values.components:
+                if comp.component_type == ScriptComponentType.FIGURE:
+                    # Update the paper_id in the figure link
+                    comp.content = comp.content.replace(comp.content.split('/')[4], values.paper_id)
+                    
+                    # Check if the figure link is accessible
+                    try:
+                        response = requests.head(comp.content, timeout=5)
+                        if response.status_code != 200:
+                            errors.append(ValueError(f"Figure link is not accessible: {comp.content}"))
+                    except requests.RequestException as e:
+                        errors.append(ValueError(f"Error checking figure link {comp.content}: {str(e)}"))
             if errors:
                 raise ValueError(errors)
             return values

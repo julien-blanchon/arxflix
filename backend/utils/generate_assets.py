@@ -23,6 +23,8 @@ from deepgram import (
     PrerecordedOptions,
     FileSource,
 )
+import traceback
+import requests
 
 from backend.type import Text, Caption, Figure, Equation, Headline, RichContent
 
@@ -178,74 +180,83 @@ def _generate_audio_and_caption_elevenlabs(
     # For each segment,
     # if it is a rich content, do nothing
     # if it is a text, generate audio and caption and store them in the object
-    for i, script_content in enumerate(script_contents):
-        match script_content:
-            case RichContent(content=content):
-                pass
-            case Text(content=content, audio=None, captions=None):
-                audio_path = (temp_dir / f"audio_{i}.wav").absolute().as_posix()#TODO change this for a more unique filename
-                # If audio_path don't exist, generate it
-                #if not os.path.exists(audio_path):
-                logger.info(f"Generating audio {i} at {audio_path}")
-                script_content.audio = elevenlabs_client.generate(
-                    text=content,
-                    voice=Voice(
-                        voice_id="cgSgspJ2msm6clMCkdW9",
-                        settings=VoiceSettings(
-                            stability=0.35,
-                            similarity_boost=0.8,
-                            style=0.0,
-                            use_speaker_boost=True,
-                        ),
-                    ),
-                    model="eleven_turbo_v2",
-                )
-                save(script_content.audio, audio_path)
+    try:
+        for i, script_content in enumerate(script_contents):
+            match script_content:
+                case RichContent(content=content):
+                    pass
+                case Text(content=content, audio=None, captions=None):
+                    audio_path = (temp_dir / f"audio_{i}.wav").absolute().as_posix()#TODO change this for a more unique filename
+                    # If audio_path don't exist, generate it
+                    if not os.path.exists(audio_path):
+                        logger.info(f"Generating audio {i} at {audio_path}")
+                        script_content.audio = elevenlabs_client.generate(
+                            text=content,
+                            voice=Voice(
+                                voice_id="cgSgspJ2msm6clMCkdW9",
+                                settings=VoiceSettings(
+                                    stability=0.35,
+                                    similarity_boost=0.8,
+                                    style=0.0,
+                                    use_speaker_boost=True,
+                                ),
+                            ),
+                            model="eleven_turbo_v2",
+                        )
+                        save(script_content.audio, audio_path)
 
-                if DEEPGRAM_API_KEY=="":
-                    audio, sr = torchaudio.load(audio_path)
-                    model = whisper.load_model("base.en")
-                    option = whisper.DecodingOptions(
-                        language="en",
-                        fp16=True,
-                        without_timestamps=False,
-                        task="transcribe",
-                    )
-                    result = model.transcribe(audio_path, word_timestamps=True)
-                    script_content.captions = _make_caption_whisper(result)
-                
-                elif (sys.platform == 'darwin'
-                and hasattr(os, 'uname') 
-                and os.uname().machine in ('arm64', 'aarch64')):
-                    result = mlx_whisper.transcribe(audio=audio_path,word_timestamps=True)
-                    script_content.captions = _make_caption_whisper(result)
+                    if DEEPGRAM_API_KEY=="" and not (sys.platform == 'darwin'
+                    and hasattr(os, 'uname') 
+                    and os.uname().machine in ('arm64', 'aarch64')):
+                        audio, sr = torchaudio.load(audio_path)
+                        model = whisper.load_model("base.en")
+                        option = whisper.DecodingOptions(
+                            language="en",
+                            fp16=True,
+                            without_timestamps=False,
+                            task="transcribe",
+                        )
+                        result = model.transcribe(audio_path, word_timestamps=True)
+                        script_content.captions = _make_caption_whisper(result)
+                        total_audio_duration = audio.size(1) / sr
                     
-                else:
-                    deepgram = DeepgramClient()
-                    with open(audio_path, "rb") as file:
-                        buffer_data = file.read()
+                    elif (sys.platform == 'darwin'
+                    and hasattr(os, 'uname') 
+                    and os.uname().machine in ('arm64', 'aarch64')):
+                        result = mlx_whisper.transcribe(audio=audio_path,word_timestamps=True)
+                        script_content.captions = _make_caption_whisper(result)
+                        
+                        total_audio_duration = float(result["segments"][-1]["end"]-result["segments"][0]["start"])
+                        
+                    else:
+                        deepgram = DeepgramClient()
+                        with open(audio_path, "rb") as file:
+                            buffer_data = file.read()
 
-                    payload: FileSource = {
-                        "buffer": buffer_data,
-                    }
+                        payload: FileSource = {
+                            "buffer": buffer_data,
+                        }
 
-                    #STEP 2: Configure Deepgram options for audio analysis
-                    options = PrerecordedOptions(
-                        model="nova-2",
-                        smart_format=True,
-                    )
+                        #STEP 2: Configure Deepgram options for audio analysis
+                        options = PrerecordedOptions(
+                            model="nova-2",
+                            smart_format=True,
+                        )
 
-                    # STEP 3: Call the transcribe_file method with the text payload and options
-                    response = deepgram.listen.rest.v("1").transcribe_file(payload, options)
-                    result = response.to_dict()["results"]["channels"][0]["alternatives"][0]["words"]
-                    script_content.captions = _make_caption_deepgram(result)
+                        # STEP 3: Call the transcribe_file method with the text payload and options
+                        response = deepgram.listen.rest.v("1").transcribe_file(payload, options)
+                        result = response.to_dict()["results"]["channels"][0]["alternatives"][0]["words"]
+                        script_content.captions = _make_caption_deepgram(result)
+                        total_audio_duration = result[-1]["end"]-result[0]["start"]
 
-                script_content.audio_path = audio_path
-                total_audio_duration = audio.size(1) / sr
-                script_content.end = total_audio_duration
+                    script_content.audio_path = audio_path
+                    script_content.end = total_audio_duration
+    except Exception as e:
 
+        logger.error(f"Error generating audio and caption: {e}, {traceback.format_exc()}")
+        raise e
 
-        time.sleep(3) ##not to be ratelimated by providers
+        time.sleep(1) ##not to be ratelimated by providers
 
     offset = 0
     # Initially all text caption start at time 0
