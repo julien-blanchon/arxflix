@@ -99,6 +99,7 @@ Attention :
 - Only extract figure that are present in the paper. Don't use the exemple links. 
 - keep the full link of the figure in the figure content value
 - Do not forget 'https://' a the start of the figure link.
+- Always include at least one figure if present in the text. Viewers like when the video is animated and well commented. 3blue1brown Style
 
 
 Here is an example of what you need to produce for paper id 2405.11273: 
@@ -354,7 +355,7 @@ def _process_script_open_gemini(paper: str, paper_id:str, end_point_base_url : s
     ]
 
     gemini_client = instructor.from_gemini(client=genai.GenerativeModel(
-    model_name="gemini-1.5-flash-002",
+    model_name="gemini-exp-1206",
     safety_settings=safe,
     generation_config={"temperature": 0, "top_p": 1, "max_output_tokens": 8000},
     ),
