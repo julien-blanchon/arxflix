@@ -7,16 +7,22 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-class ScriptComponentType(str, Enum):
+class ScriptComponentType(str):
     TEXT = "Text"
     FIGURE = "Figure"
     EQUATION = "Equation"
     HEADLINE = "Headline"
 
 class ScriptComponent(BaseModel):
-    component_type: ScriptComponentType = Field(
+    component_type: str = Field(
         ...,
-        description="Type of script component",
+        description="""Type of script component
+        Only one of : 
+        - Text 
+        - Figure, 
+        - Equation,
+        - Headline
+        """,
         examples=["Text", "Figure", "Equation", "Headline"]
     )
     content: str = Field(
@@ -24,7 +30,7 @@ class ScriptComponent(BaseModel):
         description="Content of the component",
         examples=[
             "Welcome to Arxflix! Today we'll explore a fascinating paper about AI.",
-            "https://arxiv.org/html/2405.11273/extracted/5604403/figure/moe_intro.png",
+            "https://arxiv.org/html/2405.11273/multi_od/5604403/figure/moe_intro.png",
             "E = mc^2",
             "Groundbreaking Research in AI"
         ]
@@ -41,12 +47,12 @@ class ScriptComponent(BaseModel):
         component_type = values.component_type
         logger.info(f"Validating script structure")
         
-        if component_type == ScriptComponentType.FIGURE:
-            pattern = r'^https://arxiv\.org/html/\d{4}\.\d{4,5}(/.*)?$'
-            if not re.match(pattern, values.content):
-                raise ValueError("Figure URL must start with 'https://arxiv.org/html/' followed by paper ID")
+        # if component_type == ScriptComponentType.FIGURE:
+        #     pattern = r'^https://arxiv\.org/html/\d{4}\.\d{4,5}(/.*)?$'
+        #     if not re.match(pattern, values.content):
+        #         raise ValueError("Figure URL must start with 'https://arxiv.org/html/' followed by paper ID")
         
-        elif component_type == ScriptComponentType.EQUATION:
+        if component_type == ScriptComponentType.EQUATION:
             if '$' in values.content or r'\[' in values.content or '\n' in values.content:
                 raise ValueError("Equation must not contain $, \\[, or multiple lines")
         
@@ -56,10 +62,18 @@ class ScriptComponent(BaseModel):
             
             if len(values.content.strip()) < 10:
                 raise ValueError("Text component must contain at least 10 characters")
+        elif component_type.strip() not in ["Text", "Figure", "Equation", "Headline"]:
+            raise ValueError(f"""{component_type} is not a valide component_type.
+                             Type of autorized script component
+                                    Only one of : 
+                                    - Text 
+                                    - Figure, 
+                                    - Equation,
+                                    - Headline""")
         
         return values
 
-def generate_model_with_context_check(paper_id : str ):
+def generate_model_with_context_check(paper_id : str ,paper_content : str):
     class ArxflixScript(BaseModel):
         title: str = Field(
             ...,
@@ -107,7 +121,7 @@ def generate_model_with_context_check(paper_id : str ):
         @model_validator(mode='after')
         def validate_script_structure(cls,values):
             errors = []
-            logger.info(f"Validating script structure for paper_id: {paper_id}")
+            logger.warning(f"Validating script structure for paper_id: {paper_id}")
 
             components = values.components
 
@@ -127,33 +141,52 @@ def generate_model_with_context_check(paper_id : str ):
                 if positions != list(range(len(positions))):
                     errors.append(ValueError("Component positions must be consecutive integers starting from 0"))
 
-                if sorted_components[0].component_type != ScriptComponentType.HEADLINE:
+                if sorted_components[0].component_type.strip() != ScriptComponentType.HEADLINE:
                     errors.append(ValueError("Script must start with a Headline component"))
                 
                 for i in range(1, len(sorted_components)):
-                    if (sorted_components[i].component_type == sorted_components[i-1].component_type and 
-                        sorted_components[i].component_type != ScriptComponentType.TEXT):
-                        errors.append(ValueError(f"Consecutive {sorted_components[i].component_type} components are not allowed"))
+                    if (sorted_components[i].component_type.strip() == sorted_components[i-1].component_type.strip() and 
+                        sorted_components[i].component_type.strip() != ScriptComponentType.TEXT):
+                        errors.append(ValueError(f"Consecutive {sorted_components[i].component_type.strip()} components are not allowed"))
 
                 values.components = sorted_components
-            #set replace paper id in the figure link with values.paper_id, knowing link is of format https://arxiv.org/html/2405.11273/figure1.png    
-            for comp in values.components:
-                if comp.component_type == ScriptComponentType.FIGURE:
-                    comp.content = comp.content.replace(comp.content.split('/')[4], values.paper_id)
+            
 
             for comp in values.components:
-                if comp.component_type == ScriptComponentType.FIGURE:
-                    # Update the paper_id in the figure link
-                    comp.content = comp.content.replace(comp.content.split('/')[4], values.paper_id)
-                    
-                    # Check if the figure link is accessible
+                if comp.component_type.strip() == ScriptComponentType.FIGURE:
+                    if comp.content not in paper_content:
+                        errors.append(ValueError(f"Figure link {comp.content} not found in paper content. Give the exact LINK that is in the paper"))
+                if comp.component_type.strip() not in ["Text", "Figure", "Equation", "Headline"]:
+                    errors.append(ValueError(f"""{comp.component_type.strip()} is not a valid component_type.
+                             Type of autorized script component
+                                    Only one of : 
+                                    - Text 
+                                    - Figure, 
+                                    - Equation,
+                                    - Headline"""))
+                    logger.error(errors[-1])
+                # Check if the figure link is accessible
                     try:
                         response = requests.head(comp.content, timeout=5)
                         if response.status_code != 200:
-                            errors.append(ValueError(f"Figure link is not accessible: {comp.content}"))
+                            errors.append(ValueError(f"""Figure link is not accessible: {comp.content} (Status code: {response.status_code}). Provide the exact figure link that is present in the paper
+                                                     
+                                                     Remember the exemples of extraction : 
+                                                     <example_figures>
+![](https://arxiv.org/html/2405.11273/multi_od/5604403/figure/moe_intro.png) is rendered as "https://arxiv.org/html/2405.11273/multi_od/5604403/figure/moe_intro.png"
+![](ar5iv.labs.arxiv.org//html/5643.43534/assets/x5.png) is rendered as "ar5iv.labs.arxiv.org//html/5643.43534/assets/x5.png"
+<example_figures>"""))
+                            logger.warning(f"Validating script structure for paper_id: {paper_id}")
                     except requests.RequestException as e:
-                        errors.append(ValueError(f"Error checking figure link {comp.content}: {str(e)}"))
+                        errors.append(ValueError(f"""Error accessing figure link {comp.content}: {str(e)}.Provide the exact figure link that is present in the paper
+                                                 Remember the exemples of extraction : 
+                                                     <example_figures>
+![](https://arxiv.org/html/2405.11273/multi_od/5604403/figure/moe_intro.png) is rendered as "https://arxiv.org/html/2405.11273/multi_od/5604403/figure/moe_intro.png"
+![](ar5iv.labs.arxiv.org//html/5643.43534/assets/x5.png) is rendered as "ar5iv.labs.arxiv.org//html/5643.43534/assets/x5.png"
+<example_figures>"""))
             if errors:
+                print(errors)
+                logger.error(errors)
                 raise ValueError(errors)
             return values
     return ArxflixScript
@@ -202,7 +235,7 @@ def parse_script(raw_script: str, paper_id: str) -> BaseModel:
         position += 1
     
     title = next((comp.content for comp in components 
-                 if comp.component_type == ScriptComponentType.HEADLINE), "")
+                 if comp.component_type.strip() == ScriptComponentType.HEADLINE), "")
     
     return generate_model_with_context_check(paper_id)(
         title=title,
@@ -235,5 +268,5 @@ def reconstruct_script(script: BaseModel) -> str:
         \Headline: Understanding GPT-4
         \Text: Welcome to this review!
     """
-    return '\n'.join(f"\\{comp.component_type.value}: {comp.content}" 
+    return '\n'.join(f"\\{comp.component_type.strip()}: {comp.content}" 
                     for comp in script.components)

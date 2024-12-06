@@ -6,6 +6,55 @@ import requests
 import os
 import google.generativeai as genai
 
+import re
+def replace_keys_with_values(text, dict_list):
+  """
+  Replaces keys found in a text with their corresponding values from a list of dictionaries.
+
+  Args:
+    text: The input text string.
+    dict_list: A list of dictionaries where keys are patterns to search for in the text 
+               and values are the replacements.
+
+  Returns:
+    The modified text with keys replaced by values.
+  """
+
+  # Combine all dictionaries into a single dictionary for efficiency
+  combined_dict = {}
+  for d in dict_list:
+    combined_dict.update(d)
+
+  # Sort keys by length in descending order to handle overlapping keys correctly
+  sorted_keys = sorted(combined_dict.keys(), key=len, reverse=True)
+
+  # Build a regular expression pattern to match any of the keys
+  # Escape special characters in keys for use in regex
+  pattern = re.compile("|".join(map(re.escape, sorted_keys)))
+
+  # Perform the replacement using re.sub with a lambda function
+  modified_text = pattern.sub(lambda match: combined_dict[match.group(0)], text)
+
+  return modified_text
+
+def adjust_links(text_md : str, paper_id : str):
+
+    def get_link(link,paper_id):
+        if 'ar5iv.labs.arxiv.org' in link:
+            return '![]('+link.replace('![](','https://').replace(')','')+')'
+        elif f'https:/arxiv.org/html/{paper_id}/'  in link:
+            return '![]('+link.replace('![](',f'https://arxiv.org/html/{paper_id}/').replace(')','')+')'
+        elif '(arxiv.org' in link:
+            return '![]('+link.replace('![](arxiv.org',f'https://arxiv.org/html/{paper_id}').replace(')','')+')'
+        else:
+            return '![]('+link.replace('![](',f'https://arxiv.org/html/{paper_id}/').replace(')','')+')'
+
+    links  = [{line : get_link(line,paper_id)} for line in text_md.split('\n') if '![](' in line]
+
+    return replace_keys_with_values(text_md, links)
+
+
+
 SYSTEM_PROMPT = r"""
 <context>
 You're Arxflix an AI Researcher and Content Creator on Youtube who specializes in summarizing academic papers.
@@ -27,27 +76,32 @@ The overall goal of the video is to make research papers more accessible and und
 The script sould be formated following the followings rules below:
 - Your ouput is a JSON with the following keys :
     - title: The title of the video.
-    - paper_id: The id of the paper
+    - paper_id: The id of the paper (e.g., '2405.11273') explicitly mensionned in the paper
     - target_duration_minutes : The target duration of the video
     - components : a list of component (component_type, content, position)
         - You should follow this format for each component: Text, Figure, Equation and Headline
+        - The only autorized component_type are : Text, Figure, Equation and Headline
         - Figure, Equation (latex) and Headline will be displayed in the video as *rich content*, in big on the screen. You should incorporate them in the script where they are the most useful and relevant.
         - The Text will be spoken by a narrator and caption in the video.
         - Avoid markdown listing (1., 2., or - dash) at all cost. Use full sentences that are easy to understand in spoken language.
         - For Equation: Don't use $ or [, the latex context is automatically detected.
         - For Equation: Always write everything in the same line, multiple lines will generate an error. Don't make table.
         - Don't hallucinate figures.
-        - Figure starts by https://arxiv.org/html/xxxx.aaaa/  where xxxx.aaaa is the id of the paper. Each Figure is followed by a text which explains it point.
+        - Don't forget to maintain https:// as it is in the link.
 </format_instructions>
 
-<exemple_of_Firgure>
-![](arxiv.org/x1.png) should be rendered as https://arxiv.org/html/xxxx.aaaa/x1.png   where xxxx.aaaa is the id of the paper
-![](extracted/5604403/figure/moe_intro.png) should be rendered as https://arxiv.org/html/2405.11273/extracted/5604403/figure/moe_intro.png  where 2405.11273 is the id of the paper
-</exemple_of_Firgure>
+<example_figures>
+![](https://arxiv.org/html/2405.11273/multi_od/files1/figure/moe_intro.png) is rendered as "https://arxiv.org/html/2405.11273/multi_od/files1/figure/moe_intro.png".
+![](ar5iv.labs.arxiv.org//html/5643.43534/assets/x5.png) is rendered as "ar5iv.labs.arxiv.org//html/5643.43534/assets/x5.png"
+<example_figures>
+Attention : 
+- The paper_id in the precedent instruction are just exemples. Don't confuse it with the correct paper ID you ll receve.
+- Only extract figure that are present in the paper. Don't use the exemple links. 
+- keep the full link of the figure in the figure content value
+- Do not forget 'https://' a the start of the figure link.
 
 
-
-Here is an exampl of what you need to produce for paper id 2405.11273:
+Here is an example of what you need to produce for paper id 2405.11273: 
 <exemple>
 {
     "title": "Uni-MoE: Scaling Unified Multimodal LLMs with Mixture of Experts",
@@ -66,7 +120,7 @@ Here is an exampl of what you need to produce for paper id 2405.11273:
         },
         {
             "component_type": "Figure",
-            "content": "https://arxiv.org/html/2405.11273/extracted/5604403/figure/moe_intro.png",
+            "content": "https://arxiv.org/html/2405.11273/multi_od/files1/figure/moe_intro.png",
             "position": 2
         },
         {
@@ -99,7 +153,22 @@ Here is an exampl of what you need to produce for paper id 2405.11273:
 }
 </exemple>
 
-Attention : The paper_id in the precedent instruction are just exemples. Don't confuse it with the correct paper ID you ll receve.
+
+Your output is a JSON with the following structure : 
+
+{
+    "title": "...",
+    "paper_id": "...",
+    "target_duration_minutes": ...,
+    "components": [
+        {
+            "component_type": "...",
+            "content": "...",
+            "position": ...
+        },
+        ...
+    ]
+}
 
 """
 
@@ -186,14 +255,16 @@ def _process_script_gpt(paper: str, paper_id:str) -> str:
     if not OPENAI_API_KEY:
         raise ValueError("You need to set the OPENAI_API_KEY environment variable.")
 
+    
+
     openai_client = instructor.from_openai(OpenAI(api_key=OPENAI_API_KEY))
     response = openai_client.chat.completions.create(
         model=OPENAI_MODEL,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content":  "Here is the paper I want you to generate a script from : " + paper},
+            {"role": "user", "content":  "Here is the paper I want you to generate a script from : " + paper_id},
         ],
-        response_model=generate_model_with_context_check(paper_id),
+        response_model=generate_model_with_context_check(paper_id,paper_id),
         temperature=0,
         max_retries=3
     )
@@ -235,7 +306,7 @@ def _process_script_open_source(paper: str, paper_id:str, end_point_base_url : s
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content":  "Here is the paper I want you to generate a script from : " + paper},
         ],
-        response_model=generate_model_with_context_check(paper_id),
+        response_model=generate_model_with_context_check(paper_id,paper),
         temperature=0,
         max_retries=3
     )
@@ -288,17 +359,18 @@ def _process_script_open_gemini(paper: str, paper_id:str, end_point_base_url : s
     generation_config={"temperature": 0, "top_p": 1, "max_output_tokens": 8000},
     ),
     mode=instructor.Mode.GEMINI_JSON,)
-    response = gemini_client.chat.completions.create(
+    
+
+    try :
+        response = gemini_client.chat.completions.create(
 
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content":  "Here is the paper I want you to generate a script from : " + paper},
+            {"role": "user", "content": f"Here is the paper I want you to generate a script from, its paper_id is {paper_id} : " + paper},
         ],
-        response_model=generate_model_with_context_check(paper_id),
+        response_model=generate_model_with_context_check(paper_id,paper),
         max_retries=3
     )
-
-    try :
         result = reconstruct_script(response)
     except Exception as e:
         print(e)
@@ -325,11 +397,12 @@ def process_script(method: Literal["openai", "local", "gemini"], paper_markdown:
     ValueError
         If no result is returned from OpenAI.
     """
+    pd_corrected_links = adjust_links(paper_markdown , paper_id )
     if method == "openai":
-        return _process_script_gpt(paper_markdown,paper_id)
+        return _process_script_gpt(pd_corrected_links,paper_id)
     if method == "local":
-        return _process_script_open_source(paper_markdown, paper_id, end_point_base_url)
+        return _process_script_open_source(pd_corrected_links, paper_id, end_point_base_url)
     if method == "gemini":
-        return _process_script_open_gemini(paper_markdown, paper_id, end_point_base_url)
+        return _process_script_open_gemini(pd_corrected_links, paper_id, end_point_base_url)
     else:
         raise ValueError("Invalid method. Please choose 'openai'.")
