@@ -12,7 +12,7 @@ VIDEO_HEIGHT = 1080
 VIDEO_WIDTH = 1920
 REMOTION_ROOT_PATH = Path("frontend/src/remotion/index.ts")
 REMOTION_COMPOSITION_ID = "Arxflix"
-REMOTION_CONCURRENCY = 1
+REMOTION_CONCURRENCY = 6
 
 logger = logging.getLogger(__name__)
 

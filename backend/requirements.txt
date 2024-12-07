@@ -22,3 +22,4 @@ google-generativeai
 groq
 deepgram-sdk
 mlx_whisper
+llama-cpp-python

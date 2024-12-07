@@ -9,7 +9,9 @@ from backend.main import (
 from pathlib import Path
 import tempfile
 import shutil
-
+import dotenv
+import os
+dotenv.load_dotenv()
 # Configure logging
 logging.basicConfig(level="INFO")
 logger = logging.getLogger(__name__)

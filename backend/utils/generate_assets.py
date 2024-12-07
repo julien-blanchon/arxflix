@@ -283,7 +283,7 @@ def _generate_audio_lmnt(content: str, output_file: str) -> dict:
     client = Speech(LMNT_API_KEY)
     synthesis = asyncio.run(
         client.synthesize(
-            content, voice="lily", format="wav", language="en", return_durations=True
+            text=content, voice="lily", model='blizzard',format="wav", language="en", return_durations=True,conversational=True
         )
     )
     with open(output_file, "wb") as f:
@@ -329,7 +329,7 @@ def _generate_audio_and_caption_lmnt(
                 # if not os.path.exists(audio_path):
                 logger.info(f"Generating audio {i} at {audio_path}")
                 result = _generate_audio_lmnt(content, audio_path)
-                audio, sr = torchaudio.load(audio_path)
+                audio, sr = torchaudio.load(audio_path)  #hahahahahahahaha
                 script_content.captions = _make_caption_lmnt(result)
                 script_content.audio_path = audio_path
                 total_audio_duration = audio.size(1) / sr
