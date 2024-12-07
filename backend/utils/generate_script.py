@@ -5,6 +5,10 @@ import instructor
 import requests
 import os
 import google.generativeai as genai
+import logging
+from groq import Groq
+
+logger = logging.getLogger(__name__)
 
 import re
 def replace_keys_with_values(text, dict_list):
@@ -263,7 +267,55 @@ def _process_script_gpt(paper: str, paper_id:str) -> str:
         model=OPENAI_MODEL,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content":  "Here is the paper I want you to generate a script from : " + paper_id},
+            {"role": "user", "content":  f"Here is the paper I want you to generate a script from, its paper_id is {paper_id} : " + paper},
+        ],
+        response_model=generate_model_with_context_check(paper_id,paper_id),
+        temperature=0,
+        max_retries=3
+    )
+
+    try :
+        result = reconstruct_script(response)
+    except Exception as e:
+        print(e)
+        raise ValueError(f"The model failed the script generation:  {e}")
+    # result = _correct_result_link(result, url)
+    return result
+
+
+
+def _process_script_groq(paper: str, paper_id:str) -> str:
+    """Generate a video script for a research paper.
+
+    Parameters
+    ----------
+    paper : str
+        A research paper in markdown format. (For the moment, it's HTML)
+
+    Returns
+    -------
+    str
+        The generated video script.
+
+    Raises
+    ------
+    ValueError
+        If no result is returned from OpenAI.
+    """
+    GROQ_API_KEY = os.getenv("OPENAI_API_KEY")
+    OPENAI_MODEL = os.getenv("OPENAI_MODEL", "llama-3.3-70b-versatile")
+
+    if not GROQ_API_KEY:
+        raise ValueError("You need to set the OPENAI_API_KEY environment variable.")
+
+    
+
+    openai_client = instructor.from_groq(Groq(api_key=os.getenv("GROQ_API_KEY")))
+    response = openai_client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content":  f"Here is the paper I want you to generate a script from, its paper_id is {paper_id} : " + paper},
         ],
         response_model=generate_model_with_context_check(paper_id,paper_id),
         temperature=0,
@@ -319,6 +371,10 @@ def _process_script_open_source(paper: str, paper_id:str, end_point_base_url : s
         raise ValueError(f"The model failed the script generation:  {e}")
     # result = _correct_result_link(result, url)
     return result
+
+
+
+
 def _process_script_open_gemini(paper: str, paper_id:str, end_point_base_url : str = "https://generativelanguage.googleapis.com/v1beta/openai/") -> str:
     """Generate a video script for a research paper using OpenAI's GPT-4o model.
 
@@ -355,7 +411,7 @@ def _process_script_open_gemini(paper: str, paper_id:str, end_point_base_url : s
     ]
 
     gemini_client = instructor.from_gemini(client=genai.GenerativeModel(
-    model_name="gemini-exp-1206",
+    model_name="gemini-1.5-flash-002",
     safety_settings=safe,
     generation_config={"temperature": 0, "top_p": 1, "max_output_tokens": 8000},
     ),
@@ -363,7 +419,7 @@ def _process_script_open_gemini(paper: str, paper_id:str, end_point_base_url : s
     
 
     try :
-        response = gemini_client.chat.completions.create(
+        response,raw = gemini_client.chat.completions.create_with_completion(
 
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
@@ -372,6 +428,7 @@ def _process_script_open_gemini(paper: str, paper_id:str, end_point_base_url : s
         response_model=generate_model_with_context_check(paper_id,paper),
         max_retries=3
     )
+        logger.warning(f"Number input_token : {raw.usage_metadata.prompt_token_count}")
         result = reconstruct_script(response)
     except Exception as e:
         print(e)
@@ -380,7 +437,7 @@ def _process_script_open_gemini(paper: str, paper_id:str, end_point_base_url : s
     return result
 
 
-def process_script(method: Literal["openai", "local", "gemini"], paper_markdown: str, paper_id : str, end_point_base_url : str ) -> str:
+def process_script(method: Literal["openai", "local", "gemini", "groq"], paper_markdown: str, paper_id : str, end_point_base_url : str ) -> str:
     """Generate a video script for a research paper.
 
     Parameters
@@ -405,5 +462,7 @@ def process_script(method: Literal["openai", "local", "gemini"], paper_markdown:
         return _process_script_open_source(pd_corrected_links, paper_id, end_point_base_url)
     if method == "gemini":
         return _process_script_open_gemini(pd_corrected_links, paper_id, end_point_base_url)
+    if method == "groq":
+        return _process_script_groq(pd_corrected_links,paper_id)
     else:
         raise ValueError("Invalid method. Please choose 'openai'.")
