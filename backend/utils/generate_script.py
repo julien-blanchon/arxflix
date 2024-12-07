@@ -317,7 +317,7 @@ def _process_script_groq(paper: str, paper_id:str) -> str:
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content":  f"Here is the paper I want you to generate a script from, its paper_id is {paper_id} : " + paper},
         ],
-        response_model=generate_model_with_context_check(paper_id,paper_id),
+        response_model=generate_model_with_context_check(paper_id,paper),
         temperature=0,
         max_retries=3
     )
