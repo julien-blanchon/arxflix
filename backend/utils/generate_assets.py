@@ -188,22 +188,22 @@ def _generate_audio_and_caption_elevenlabs(
                 case Text(content=content, audio=None, captions=None):
                     audio_path = (temp_dir / f"audio_{i}.wav").absolute().as_posix()#TODO change this for a more unique filename
                     # If audio_path don't exist, generate it
-                    if not os.path.exists(audio_path):
-                        logger.info(f"Generating audio {i} at {audio_path}")
-                        script_content.audio = elevenlabs_client.generate(
-                            text=content,
-                            voice=Voice(
-                                voice_id="cgSgspJ2msm6clMCkdW9",
-                                settings=VoiceSettings(
-                                    stability=0.35,
-                                    similarity_boost=0.8,
-                                    style=0.0,
-                                    use_speaker_boost=True,
-                                ),
+                    #if not os.path.exists(audio_path):
+                    logger.info(f"Generating audio {i} at {audio_path}")
+                    script_content.audio = elevenlabs_client.generate(
+                        text=content,
+                        voice=Voice(
+                            voice_id="cgSgspJ2msm6clMCkdW9",
+                            settings=VoiceSettings(
+                                stability=0.35,
+                                similarity_boost=0.8,
+                                style=0.0,
+                                use_speaker_boost=True,
                             ),
-                            model="eleven_turbo_v2",
-                        )
-                        save(script_content.audio, audio_path)
+                        ),
+                        model="eleven_turbo_v2",
+                    )
+                    save(script_content.audio, audio_path)
 
                     if DEEPGRAM_API_KEY=="" and not (sys.platform == 'darwin'
                     and hasattr(os, 'uname') 
@@ -280,7 +280,7 @@ def _generate_audio_and_caption_elevenlabs(
 
 def _generate_audio_lmnt(content: str, output_file: str) -> dict:
     LMNT_API_KEY = os.getenv("LMNT_API_KEY")
-    client = Speech(LMNT_API_KEY)
+    client = Speech(api_key=LMNT_API_KEY)
     synthesis = asyncio.run(
         client.synthesize(
             text=content, voice="lily", model='blizzard',format="wav", language="en", return_durations=True,conversational=True

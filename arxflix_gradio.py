@@ -11,6 +11,7 @@ import tempfile
 import shutil
 import dotenv
 import os
+import time
 dotenv.load_dotenv()
 # Configure logging
 logging.basicConfig(level="INFO")
@@ -22,6 +23,9 @@ DEFAULT_METHOD_SCRIPT = "openai"
 DEFAULT_METHOD_AUDIO = "elevenlabs"
 DEFAULT_PAPER_ID = "2404.02905"  # Example paper ID
 
+
+VIDEO_DIR = Path("generated_videos")  # Directory to store videos permanently
+VIDEO_DIR.mkdir(exist_ok=True)
 
 def process_and_generate_video(
     method_paper, paper_id, method_script, method_audio, api_base_url=None
@@ -68,7 +72,12 @@ def process_and_generate_video(
         generate_video(input_dir, output_video)
         logger.info("Generated video successfully.")
 
-        return output_video
+        # 6. Move video to permanent location
+        final_video_path = VIDEO_DIR / f"video_{paper_id}_{int(time.time())}.mp4"  # Unique filename
+        shutil.move(str(output_video), str(final_video_path))
+        logger.info(f"Video saved to {final_video_path}")
+
+        return gr.update(value=final_video_path)
 
     except Exception as e:
         logger.error(f"An error occurred: {e}")
@@ -115,4 +124,4 @@ with gr.Blocks() as demo:
     )
 
 if __name__ == "__main__":
-    demo.launch()
+    demo.launch(share=True)

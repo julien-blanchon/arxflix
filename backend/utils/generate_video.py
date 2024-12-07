@@ -84,7 +84,7 @@ def process_video(
         cwd=input.absolute().as_posix(),
     ) as static_server:
         print(f"Exposed directory {input}")
-        sleep(60)
+        sleep(2)
         logger.info(f"Exposed directory {input}")
         composition_props = CompositionProps(
             subtitlesFileName=f"http://localhost:{free_port}/subtitles.srt",
