@@ -28,43 +28,61 @@ client.setConfig({
 });
 
 function useLocalStorage<T>(key: string, defaultValue: T): [T, (value: T) => void] {
-  const [value, setValue] = useState(defaultValue);
+  const [value, setValue] = useState<T>(defaultValue);
 
   useEffect(() => {
     const item = localStorage.getItem(key);
-
-    if (!item) {
-      localStorage.setItem(key, JSON.stringify(defaultValue))
+    //  Handle the case where the item is null or "undefined" string
+    if (item === null || item === "undefined") {
+      setValue(defaultValue);
+      localStorage.setItem(key, JSON.stringify(defaultValue));
+    } else {
+      try {
+        setValue(JSON.parse(item));
+      } catch (error) {
+        console.error("Error parsing localStorage item:", error);
+        setValue(defaultValue);
+        localStorage.setItem(key, JSON.stringify(defaultValue));
+      }
     }
 
-    setValue(item ? JSON.parse(item) : defaultValue)
 
-    function handler(e: StorageEvent) {
+    const handler = (e: StorageEvent) => {
       if (e.key !== key) return;
 
-      const lsi = localStorage.getItem(key)
-      setValue(JSON.parse(lsi ?? ""))
-    }
+      const lsi = localStorage.getItem(key);
+      try {
+         // added try/catch here as well to prevent parsing error.
+        setValue(lsi ? JSON.parse(lsi) : defaultValue );
+      } catch (error) {
+        console.error("Error parsing localStorage item in event handler:", error);
+        setValue(defaultValue);
+        localStorage.setItem(key, JSON.stringify(defaultValue));
+      }
 
-    window.addEventListener("storage", handler)
-
-    return () => {
-      window.removeEventListener("storage", handler)
     };
-  }, [])
+
+    window.addEventListener("storage", handler);
+
+    return () => window.removeEventListener("storage", handler);
+    // Added defaultValue to the dependency array
+  }, [key, defaultValue]);
 
   const setValueWrap = (value: T) => {
-    try {
-      setValue(value);
+    setValue(value);
+
       localStorage.setItem(key, JSON.stringify(value));
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new StorageEvent("storage", { key }))
-      }
-    } catch (e) { console.error(e) }
+
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new StorageEvent("storage", { key }));
+    }
+
   };
 
   return [value, setValueWrap];
 }
+
 import {
   VIDEO_WIDTH,
   VIDEO_HEIGHT,
@@ -100,12 +118,12 @@ export default function Home() {
     setState(undefined);
   }
 
-  const callGenerateScript = async (mdContent: string) => {
+  const callGenerateScript = async (mdContent: string, paper_id: string ) => {
     console.log("Calling generate script with mdContent:", mdContent);
     setState("loading");
-    const response = await generateScriptGenerateScriptPost({
+    const response = await generateScriptGenerateScriptPost({ 
       client: client,
-      query: { method: "openai", paper_markdown: mdContent },
+      query: { method: "openai", paper_markdown: mdContent, paper_id: paper_id },
     });
 
     if (response.error) {
@@ -125,7 +143,7 @@ export default function Home() {
     const response = await generateAssetsGenerateAssetsPost({
       client: client,
       query: { 
-        method: "lmnt", 
+        method: "elevenlabs", 
         script: script,
         mp3_output: `../frontend/public/${_folder}/audio.wav`,
         rich_output: `../frontend/public/${_folder}/rich.json`,
@@ -180,7 +198,7 @@ export default function Home() {
             </div>
             <StepButtons onClick={async (state) => {
               if (!mdContent) return;
-              await callGenerateScript(mdContent)
+              await callGenerateScript(mdContent,arxivId)
               return state;
             }} />
           </Step>

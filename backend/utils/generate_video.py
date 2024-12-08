@@ -12,7 +12,7 @@ VIDEO_HEIGHT = 1080
 VIDEO_WIDTH = 1920
 REMOTION_ROOT_PATH = Path("frontend/src/remotion/index.ts")
 REMOTION_COMPOSITION_ID = "Arxflix"
-REMOTION_CONCURRENCY = 1
+REMOTION_CONCURRENCY = 6
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +84,7 @@ def process_video(
         cwd=input.absolute().as_posix(),
     ) as static_server:
         print(f"Exposed directory {input}")
-        sleep(60)
+        sleep(2)
         logger.info(f"Exposed directory {input}")
         composition_props = CompositionProps(
             subtitlesFileName=f"http://localhost:{free_port}/subtitles.srt",

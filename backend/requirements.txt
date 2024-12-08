@@ -17,3 +17,10 @@ lmnt
 arxiv
 ffmpeg
 joblib
+instructor
+google-generativeai
+groq
+deepgram-sdk
+mlx_whisper
+llama-cpp-python
+gradio
