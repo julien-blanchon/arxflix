@@ -95,7 +95,7 @@ def generate_script(method: Literal["openai","local","gemini"], paper_markdown: 
 @api.post("/generate_assets/")
 def generate_assets(
     script: str,
-    method: Literal["elevenlabs", "lmnt"],
+    method: Literal["elevenlabs", "lmnt", "kokoro"] = "kokoro",
     mp3_output: str = "public/audio.wav",
     srt_output: str = "public/output.srt",
     rich_output: str = "public/output.json",
@@ -106,8 +106,8 @@ def generate_assets(
     ----------
     script : str
         The video script
-    method : "elevenlabs" | "lmnt"
-        The method to generate audio
+    method : "elevenlabs" | "lmnt" | "kokoro", optional
+        The method to generate audio, by default "kokoro"
     mp3_output : str, optional
         The output mp3 file path, by default "public/audio.wav"
     srt_output : str, optional

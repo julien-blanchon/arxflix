@@ -24,3 +24,5 @@ deepgram-sdk
 mlx_whisper
 llama-cpp-python
 gradio
+kokoro>=0.9.4
+soundfile

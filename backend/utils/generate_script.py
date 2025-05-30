@@ -396,7 +396,7 @@ def _process_script_open_gemini(paper: str, paper_id:str, end_point_base_url : s
 
 
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-    GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash-002")
+    GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-001")
 
 
     genai.configure(api_key=GEMINI_API_KEY)
@@ -411,7 +411,7 @@ def _process_script_open_gemini(paper: str, paper_id:str, end_point_base_url : s
     ]
 
     gemini_client = instructor.from_gemini(client=genai.GenerativeModel(
-    model_name="gemini-1.5-flash-002",
+    model_name="gemini-2.0-flash-001",
     safety_settings=safe,
     generation_config={"temperature": 0, "top_p": 1, "max_output_tokens": 8000},
     ),

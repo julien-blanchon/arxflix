@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_METHOD_PAPER = "arxiv_html"
 DEFAULT_METHOD_SCRIPT = "openai"
-DEFAULT_METHOD_AUDIO = "elevenlabs"
+DEFAULT_METHOD_AUDIO = "kokoro"
 DEFAULT_PAPER_ID = "2404.02905"
 
 VIDEO_DIR = Path("generated_videos")
@@ -111,7 +111,7 @@ with gr.Blocks() as demo:
         value=DEFAULT_METHOD_SCRIPT,
     )
     method_audio_input = gr.Dropdown(
-        ["elevenlabs", "lmnt"],
+        ["elevenlabs", "lmnt", "kokoro"],
         label="Audio Generation Method",
         value=DEFAULT_METHOD_AUDIO,
     )
