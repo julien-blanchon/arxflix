@@ -10,7 +10,6 @@ torchaudio
 openai-whisper
 beautifulsoup4
 markdownify
-soundfile
 openai
 pandas
 lmnt
@@ -23,6 +22,6 @@ groq
 deepgram-sdk
 mlx_whisper
 llama-cpp-python
-gradio
-kokoro>=0.9.4
-soundfile
+gradio==5.31.0
+kokoro==0.9.4
+soundfile==0.13.1
