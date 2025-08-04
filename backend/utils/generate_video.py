@@ -70,6 +70,25 @@ def process_video(
     # Pick an available port,
     free_port = get_free_port()
     print(f"Free port: {free_port}")
+    # Ensure that figures inside the Rich Content JSON can be fetched by the Remotion bundle.
+    # If a Figure has a local filename (e.g. "figure_1.png"), we prefix it with the URL of the
+    # temporary static server so that the browser inside Remotion can retrieve it over HTTP.
+    rich_json_path = input / "rich.json"
+    if rich_json_path.exists():
+        try:
+            data = json.loads(rich_json_path.read_text())
+            # The JSON is expected to be a list of dicts.
+            for item in data:
+                if (
+                    isinstance(item, dict)
+                    and item.get("type") == "figure"
+                    and isinstance(item.get("content"), str)
+                    and not item["content"].lower().startswith(("http://", "https://"))
+                ):
+                    item["content"] = f"http://localhost:{free_port}/{item['content']}"
+            rich_json_path.write_text(json.dumps(data))
+        except Exception as e:
+            logger.warning(f"Failed to rewrite {rich_json_path} with absolute URLs: {e}")
     with subprocess.Popen(
         [
             "pnpx",

@@ -4,7 +4,7 @@ import urllib.request
 from bs4 import BeautifulSoup
 from markdownify import MarkdownConverter
 from typing import Any, Literal
-
+from markthat import MarkThat
 
 def _get_arxiv_html_paper_url(paper_id: str) -> str | None:
     url = f"https://ar5iv.labs.arxiv.org/html/{paper_id}/"
@@ -214,7 +214,7 @@ def process_article_arxiv_html(paper_id: str) -> str:
     return markdown_article
 
 
-def process_article(method: Literal["arxiv_gpt", "arxiv_html"], paper_id: str) -> str:
+def process_article(method: Literal["arxiv_gpt", "arxiv_html", "pdf"], paper_id: str, pdf_path: str=None) -> str:
     """Process an article from a given URL and save it as a markdown file.
 
     Args:
@@ -228,6 +228,17 @@ def process_article(method: Literal["arxiv_gpt", "arxiv_html"], paper_id: str) -
         return process_article_arxiv_gpt(paper_id)
     elif method == "arxiv_html":
         return process_article_arxiv_html(paper_id)
+    elif method == "pdf":
+        import asyncio
+        client = MarkThat(provider="gemini", model="gemini-2.0-flash-001",api_key=os.getenv("GEMINI_API_KEY"),
+                  api_key_figure_detector=os.getenv("GEMINI_API_KEY"),
+                  api_key_figure_extractor=os.getenv("GEMINI_API_KEY"),
+                  api_key_figure_parser=os.getenv("GEMINI_API_KEY"))
+        result = asyncio.run(client.async_convert(pdf_path, extract_figure=True,
+                                    coordinate_model="gemini-2.0-flash-001",
+                                    parsing_model="gemini-2.5-flash-lite",
+                                    ))
+        return "\n".join(result)
     else:
         raise ValueError(
             "Invalid article method. Please choose either 'arxiv_gpt' or 'arxiv_html'."

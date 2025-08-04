@@ -26,7 +26,12 @@ VIDEO_DIR = Path("generated_videos")
 VIDEO_DIR.mkdir(exist_ok=True)
 
 def process_and_generate_video(
-    method_paper, paper_id, method_script, method_audio, api_base_url=None
+    method_paper,
+    paper_id,
+    method_script,
+    method_audio,
+    pdf_file,
+    api_base_url=None,
 ):
     """Processes the entire pipeline and generates the video."""
     status = "Starting the pipeline..."
@@ -35,17 +40,29 @@ def process_and_generate_video(
     temp_dir = None
     try:
         # 1. Generate Paper Markdown
-        status = "Generating paper markdown..."
-        yield gr.update(value=status), None
-        paper_markdown = generate_paper(method_paper, paper_id)
+        if pdf_file:
+            status = "Generating paper markdown from PDF..."
+            yield gr.update(value=status), None
+            paper_markdown = generate_paper("pdf", "paper_id", pdf_path=pdf_file)
+        else:
+            status = "Generating paper markdown..."
+            yield gr.update(value=status), None
+            paper_markdown = generate_paper(method_paper, paper_id)
         logger.info("Paper markdown generated successfully.")
         
         # 2. Generate Script
-        status = "Generating script from markdown..."
-        yield gr.update(value=status), None
-        script = generate_script(
-            method_script, paper_markdown, paper_id, api_base_url
-        )
+        if pdf_file:
+            status = "Generating script from PDF markdown..."
+            yield gr.update(value=status), None
+            script = generate_script(
+                method_script, paper_markdown, "paper_id", api_base_url, from_pdf=True
+            )
+        else:
+            status = "Generating script from markdown..."
+            yield gr.update(value=status), None
+            script = generate_script(
+                method_script, paper_markdown, paper_id, api_base_url
+            )
         logger.info("Script generated successfully.")
 
         # 3. Create temporary directory for assets
@@ -105,6 +122,7 @@ with gr.Blocks() as demo:
         value=DEFAULT_METHOD_PAPER,
     )
     paper_id_input = gr.Textbox(label="Arxiv Paper ID", value=DEFAULT_PAPER_ID)
+    pdf_file_input = gr.File(label="Upload PDF", file_types=[".pdf"], type="filepath")
     method_script_input = gr.Dropdown(
         ["openai", "local", "gemini"],
         label="Script Generation Method",
@@ -128,6 +146,7 @@ with gr.Blocks() as demo:
             paper_id_input,
             method_script_input,
             method_audio_input,
+            pdf_file_input,
             api_base_url,
         ],
         outputs=[status_output, video_output],

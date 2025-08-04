@@ -130,7 +130,7 @@ def generate_model_with_context_check(paper_id : str ,paper_content : str):
             if not components:
                 errors.append(ValueError("Script must contain at least one component"))
 
-            if values.paper_id != paper_id:
+            if paper_id != "paper_id" and values.paper_id != paper_id:
                 logger.warning(f"Paper ID mismatch: expected {paper_id}, got {values.paper_id}, correcting")
                 errors.append(ValueError(f"The paper id is {paper_id}, you wrote a wrong one, correct it everywhere"))
                 

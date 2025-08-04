@@ -26,6 +26,7 @@ from deepgram import (
 import traceback
 import requests
 import soundfile as sf
+import shutil
 from kokoro import KPipeline
 
 from backend.type import Text, Caption, Figure, Equation, Headline, RichContent
@@ -612,6 +613,13 @@ def export_srt(full_audio_path: str, out_path: str) -> None:
 
 
 def export_rich_content_json(rich_content: list[RichContent], out_path: str) -> None:
+    """Export the rich content to a json file.
+
+    If a Figure has a local file path (e.g. "/Users/foo/bar/image.png") we copy the
+    file next to the generated rich.json and rewrite the reference so that
+    Remotion can fetch it through the temporary HTTP server (relative URL).
+    Remote URLs (starting with http/https) are left untouched.
+    """
     """Export the rich content to a json file
 
     Parameters
@@ -621,16 +629,32 @@ def export_rich_content_json(rich_content: list[RichContent], out_path: str) -> 
     out_path : str
         Path to save the json file
     """
-    # Export rich content to json
+    # Prepare directory where we will write the JSON – we also copy any local
+    # images next to it so they can be served by the temporary HTTP server.
+    out_dir = Path(out_path).parent
+    os.makedirs(out_dir, exist_ok=True)
+
     rich_content_dict = []
     for i, content in enumerate(rich_content):
-        content_dict = {
+        # If this is a local Figure (not starting with http/https), copy it next
+        # to the json file and rewrite the reference to a relative URL that the
+        # browser can fetch through http://localhost:<port>/.
+        if isinstance(content, Figure):
+            path_obj = Path(content.content)
+            if path_obj.is_file() and not str(content.content).lower().startswith(("http://", "https://")):
+                destination = out_dir / path_obj.name
+                # Only copy if we haven't already.
+                if not destination.exists():
+                    shutil.copy(path_obj, destination)
+                # Use only the filename in the JSON (relative URL).
+                content.content = path_obj.name
+        rich_content_dict.append({
             "type": content.__class__.__name__.lower(),
             "content": content.content,
             "start": content.start,
             "end": content.end,
-        }
-        rich_content_dict.append(content_dict)
+        })
+
     df = pd.DataFrame(rich_content_dict)
     df.to_json(out_path, orient="records")
 

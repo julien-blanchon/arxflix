@@ -25,3 +25,7 @@ llama-cpp-python
 gradio==5.31.0
 kokoro==0.9.4
 soundfile==0.13.1
+pymupdf==1.26.3
+Pillow
+jinja2
+markthat==1.2.3
