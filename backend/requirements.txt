@@ -5,8 +5,8 @@ fastapi[standard]
 pydantic
 elevenlabs
 srt
-torch
-torchaudio
+torch==2.3.0
+torchaudio==2.3.0
 openai-whisper
 beautifulsoup4
 markdownify

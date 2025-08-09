@@ -85,7 +85,8 @@ def process_video(
                     and isinstance(item.get("content"), str)
                     and not item["content"].lower().startswith(("http://", "https://"))
                 ):
-                    item["content"] = f"http://localhost:{free_port}/{item['content']}"
+                    # Prefer IPv4 to avoid environments where localhost resolves to ::1
+                    item["content"] = f"http://127.0.0.1:{free_port}/{item['content']}"
             rich_json_path.write_text(json.dumps(data))
         except Exception as e:
             logger.warning(f"Failed to rewrite {rich_json_path} with absolute URLs: {e}")
@@ -96,7 +97,7 @@ def process_video(
             input.absolute().as_posix(),
             "--cors",
             "-a",
-            "localhost",
+            "0.0.0.0",
             "-p",
             free_port,
         ],
@@ -105,13 +106,15 @@ def process_video(
         print(f"Exposed directory {input}")
         sleep(2)
         logger.info(f"Exposed directory {input}")
+        # Use IPv4 to avoid environments where localhost resolves to IPv6 ::1
+        base_url = f"http://127.0.0.1:{free_port}"
         composition_props = CompositionProps(
-            subtitlesFileName=f"http://localhost:{free_port}/subtitles.srt",
-            audioFileName=f"http://localhost:{free_port}/audio.wav",
-            richContentFileName=f"http://localhost:{free_port}/rich.json",
+            subtitlesFileName=f"{base_url}/subtitles.srt",
+            audioFileName=f"{base_url}/audio.wav",
+            richContentFileName=f"{base_url}/rich.json",
         )
         logger.info(f"Generating video to {output}")
-        subprocess.run(
+        render_proc = subprocess.run(
             [
                 "npx",
                 "remotion",
@@ -129,5 +132,9 @@ def process_video(
             cwd=Path("frontend").absolute().as_posix(),
         )
         static_server.terminate()
+        if render_proc.returncode != 0:
+            raise RuntimeError(f"Remotion render failed with exit code {render_proc.returncode}")
+        if not output.exists():
+            raise FileNotFoundError(str(output))
         logger.info(f"Generated video to {output}")
         return output

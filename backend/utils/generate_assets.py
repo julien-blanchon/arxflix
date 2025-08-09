@@ -16,7 +16,7 @@ from datetime import timedelta
 from pathlib import Path
 import logging
 import time
-import mlx_whisper
+
 from groq import Groq
 from deepgram import (
     DeepgramClient,
@@ -28,6 +28,11 @@ import requests
 import soundfile as sf
 import shutil
 from kokoro import KPipeline
+
+try:
+    import mlx_whisper
+except ImportError:
+    mlx_whisper = None
 
 from backend.type import Text, Caption, Figure, Equation, Headline, RichContent
 
@@ -225,7 +230,8 @@ def _generate_audio_and_caption_elevenlabs(
                     
                     elif (sys.platform == 'darwin'
                     and hasattr(os, 'uname') 
-                    and os.uname().machine in ('arm64', 'aarch64')):
+                    and os.uname().machine in ('arm64', 'aarch64')
+                    and mlx_whisper is not None):
                         result = mlx_whisper.transcribe(audio=audio_path,word_timestamps=True)
                         script_content.captions = _make_caption_whisper(result)
                         
@@ -431,7 +437,8 @@ def _generate_audio_and_caption_kokoro(
                     
                     elif (sys.platform == 'darwin'
                         and hasattr(os, 'uname') 
-                        and os.uname().machine in ('arm64', 'aarch64')):
+                        and os.uname().machine in ('arm64', 'aarch64')
+                        and mlx_whisper is not None):
                         result = mlx_whisper.transcribe(audio=audio_path, word_timestamps=True)
                         script_content.captions = _make_caption_whisper(result)
                         
