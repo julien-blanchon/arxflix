@@ -82,14 +82,18 @@ docker run --rm -it -p 7860:7860 --env-file .env -v "$(pwd)/generated_videos:/ap
 
 ### Environment
 
-Place a `.env` file at the repository root. Common variables:
+Place a `.env` file at the repository root. Common variables
+For the moment OpenRouter is used as provider for all models.
+(So we use OpenRouter to be sure everything goes well)
+:
 
 ```
 # LLMs
+OPENROUTER_API_KEY=
 OPENAI_API_KEY=
 GEMINI_API_KEY=
 GROQ_API_KEY=
-OPENROUTER_API_KEY=
+
 
 # Audio providers (optional depending on your selection)
 ELEVENLABS_API_KEY=
