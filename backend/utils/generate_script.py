@@ -1,14 +1,17 @@
-from typing import Literal
+from typing import Literal, Any
 from openai import OpenAI
 from  backend.schemas.script import generate_model_with_context_check, reconstruct_script
 import instructor
+from instructor.hooks import Hooks, HookName
 import requests
 import os
 import google.generativeai as genai
 import logging
+import traceback
 from groq import Groq
 
 logger = logging.getLogger(__name__)
+
 
 import re
 def replace_keys_with_values(text, dict_list):
@@ -290,6 +293,79 @@ Your output is a JSON with the following structure :
 """
 
 
+def create_logging_hooks(tag: str = "instructor") -> Hooks:
+    """Create hooks that log each failed attempt (completion + parse errors)."""
+    hooks = Hooks()
+    state: dict[str, Any] = {"kwargs": None, "response": None}
+
+    def on_kwargs(*args: Any, **kwargs: Any) -> None:
+        try:
+            state["kwargs"] = {
+                "model": kwargs.get("model"),
+                "messages": kwargs.get("messages")
+                or kwargs.get("contents")
+                or kwargs.get("chat_history"),
+                "temperature": kwargs.get("temperature"),
+                "top_p": kwargs.get("top_p"),
+                "stream": kwargs.get("stream"),
+            }
+        except Exception:
+            pass
+
+    def on_response(response: Any) -> None:
+        state["response"] = response
+
+    def extract_text_from_response(resp: Any) -> str | None:
+        try:
+            if hasattr(resp, "choices") and resp.choices:
+                choice0 = resp.choices[0]
+                if hasattr(choice0, "message") and getattr(choice0.message, "content", None):
+                    return str(choice0.message.content)
+                if hasattr(choice0, "text") and getattr(choice0, "text", None):
+                    return str(choice0.text)
+        except Exception:
+            return None
+        return None
+
+    def on_parse_error(error: Exception) -> None:
+        model = None
+        messages = None
+        if isinstance(state.get("kwargs"), dict):
+            model = state["kwargs"].get("model")
+            messages = state["kwargs"].get("messages")
+        raw_text = extract_text_from_response(state.get("response"))
+
+        logger.error(f"[{tag}] Parse error: {error}")
+        if model:
+            logger.error(f"[{tag}] Model: {model}")
+        if messages:
+            try:
+                user_prompt = None
+                for m in messages:
+                    if isinstance(m, dict) and m.get("role") == "user":
+                        user_prompt = m.get("content")
+                if user_prompt:
+                    excerpt = str(user_prompt)
+                    logger.error(f"[{tag}] Prompt excerpt: {excerpt[:1000]}")
+            except Exception:
+                pass
+        if raw_text:
+            logger.error(f"[{tag}] Raw completion excerpt: {raw_text[:1000]}")
+
+    def on_completion_error(error: Exception) -> None:
+        logger.error(f"[{tag}] Completion error: {error}")
+
+    def on_last_attempt(error: Exception) -> None:
+        logger.error(f"[{tag}] Last attempt failed: {error}")
+
+    hooks.on(HookName.COMPLETION_KWARGS, on_kwargs)
+    hooks.on(HookName.COMPLETION_RESPONSE, on_response)
+    hooks.on(HookName.PARSE_ERROR, on_parse_error)
+    hooks.on(HookName.COMPLETION_ERROR, on_completion_error)
+    hooks.on(HookName.COMPLETION_LAST_ATTEMPT, on_last_attempt)
+    return hooks
+
+
 def _correct_result_link(script: str, url: str) -> str:
     """Correct generated links in a research paper script.
 
@@ -374,8 +450,12 @@ def _process_script_gpt(paper: str, paper_id:str) -> str:
 
     
 
-    openai_client = instructor.from_openai(OpenAI(api_key=OPENAI_API_KEY))
-    response = openai_client.chat.completions.create_with_completion(
+    openai_client = instructor.from_openai(
+        OpenAI(api_key=OPENAI_API_KEY),
+        mode=instructor.Mode.JSON_SCHEMA,
+        hooks=create_logging_hooks("openai"),
+    )
+    response,raw = openai_client.chat.completions.create_with_completion(
         model=OPENAI_MODEL,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT_NO_LINK if paper_id == "paper_id" else SYSTEM_PROMPT},
@@ -422,8 +502,12 @@ def _process_script_groq(paper: str, paper_id:str) -> str:
 
     
 
-    openai_client = instructor.from_groq(Groq(api_key=os.getenv("GROQ_API_KEY")))
-    response = openai_client.chat.completions.create_with_completion(
+    openai_client = instructor.from_groq(
+        Groq(api_key=os.getenv("GROQ_API_KEY")),
+        mode=instructor.Mode.JSON_SCHEMA,
+        hooks=create_logging_hooks("groq"),
+    )
+    response,raw = openai_client.chat.completions.create_with_completion(
         model="llama-3.3-70b-versatile",
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT_NO_LINK if paper_id == "paper_id" else SYSTEM_PROMPT},
@@ -455,9 +539,11 @@ def _process_script_openrouter(paper: str, paper_id: str) -> str:
         raise ValueError("You need to set the OPENROUTER_API_KEY environment variable.")
 
     openrouter_client = instructor.from_openai(
-        OpenAI(api_key=OPENROUTER_API_KEY, base_url=OPENROUTER_BASE_URL)
+        OpenAI(api_key=OPENROUTER_API_KEY, base_url=OPENROUTER_BASE_URL),
+        mode=instructor.Mode.OPENROUTER_STRUCTURED_OUTPUTS,
+        hooks=create_logging_hooks("openrouter"),
     )
-    response = openrouter_client.chat.completions.create_with_completion(
+    response,raw = openrouter_client.chat.completions.create_with_completion(
         model=OPENROUTER_MODEL,
         messages=
         [
@@ -478,7 +564,7 @@ def _process_script_openrouter(paper: str, paper_id: str) -> str:
         result = reconstruct_script(response)
     except Exception as e:
         print(e)
-        raise ValueError(f"The model failed the script generation:  {e}")
+        raise ValueError(f"The model failed the script generation:  {e}, {traceback.format_exc()}")
     return result
 def _process_script_open_source(paper: str, paper_id:str, end_point_base_url : str ) -> str:
     """Generate a video script for a research paper using OpenAI's GPT-4o model.
@@ -501,9 +587,11 @@ def _process_script_open_source(paper: str, paper_id:str, end_point_base_url : s
 
 
 
-    openai_client = instructor.from_openai(OpenAI(api_key="not-needed",
-                                                  base_url=end_point_base_url))
-    response = openai_client.chat.completions.create_with_completion(
+    openai_client = instructor.from_openai(
+        OpenAI(api_key="not-needed", base_url=end_point_base_url),
+        hooks=create_logging_hooks("local"),
+    )
+    response,raw = openai_client.chat.completions.create_with_completion(
         model="not-needed",
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT_NO_LINK if paper_id == "paper_id" else SYSTEM_PROMPT},
@@ -565,7 +653,8 @@ def _process_script_open_gemini(paper: str, paper_id:str, end_point_base_url : s
     safety_settings=safe,
     generation_config={"temperature": 0, "top_p": 1, "max_output_tokens": 8000},
     ),
-    mode=instructor.Mode.GEMINI_JSON,)
+    mode=instructor.Mode.GEMINI_JSON,
+    hooks=create_logging_hooks("gemini"),)
     
 
     try :
