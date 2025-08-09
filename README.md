@@ -24,7 +24,7 @@ ArXFlix is a powerful tool that automatically transforms research papers from Ar
     -   Creates engaging video scripts tailored for a two-minute format.
     -   Supports multiple script generation methods: `openai`, `local`, and `gemini`, `openrouter`.
 -   **Audio Synthesis:**
-    -   Converts scripts into natural-sounding audio using either `elevenlabs` or `lmnt` text-to-speech services.
+    -   Converts scripts into natural-sounding audio using either `elevenlabs` or `lmnt`  text-to-speech services or `kokoro` locally.
 -   **Video Generation:**
     -   Combines generated audio, subtitles (SRT), and rich content (JSON) to create a complete video.
     -   Uses FFmpeg for video processing.
