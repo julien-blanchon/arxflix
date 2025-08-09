@@ -71,7 +71,7 @@ def generate_paper(method: Literal["arxiv_gpt", "arxiv_html", "pdf"], paper_id: 
 
 @cli.command("generate_script")
 @api.post("/generate_script/")
-def generate_script(method: Literal["openai","local","gemini"], paper_markdown: str,paper_id: str, end_point_base_url : str=None, from_pdf: bool=False) -> str:
+def generate_script(method: Literal["openai","local","gemini","openrouter","groq"], paper_markdown: str,paper_id: str, end_point_base_url : str=None, from_pdf: bool=False) -> str:
     """Generate video script from paper markdown using an LLM
 
     Parameters

@@ -375,10 +375,10 @@ def _process_script_gpt(paper: str, paper_id:str) -> str:
     
 
     openai_client = instructor.from_openai(OpenAI(api_key=OPENAI_API_KEY))
-    response = openai_client.chat.completions.create(
+    response = openai_client.chat.completions.create_with_completion(
         model=OPENAI_MODEL,
         messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": SYSTEM_PROMPT_NO_LINK if paper_id == "paper_id" else SYSTEM_PROMPT},
             {"role": "user", "content":  f"Here is the paper I want you to generate a script from, its paper_id is {paper_id} : " + paper},
         ],
         response_model=generate_model_with_context_check(paper_id,paper),
@@ -423,10 +423,10 @@ def _process_script_groq(paper: str, paper_id:str) -> str:
     
 
     openai_client = instructor.from_groq(Groq(api_key=os.getenv("GROQ_API_KEY")))
-    response = openai_client.chat.completions.create(
+    response = openai_client.chat.completions.create_with_completion(
         model="llama-3.3-70b-versatile",
         messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": SYSTEM_PROMPT_NO_LINK if paper_id == "paper_id" else SYSTEM_PROMPT},
             {"role": "user", "content":  f"Here is the paper I want you to generate a script from, its paper_id is {paper_id} : " + paper},
         ],
         response_model=generate_model_with_context_check(paper_id,paper),
@@ -442,6 +442,44 @@ def _process_script_groq(paper: str, paper_id:str) -> str:
     # result = _correct_result_link(result, url)
     return result
 
+def _process_script_openrouter(paper: str, paper_id: str) -> str:
+    """Generate a video script using OpenRouter (OpenAI-compatible API).
+
+    Uses the OpenAI SDK pointed to the OpenRouter base URL.
+    """
+    OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+    OPENROUTER_MODEL = os.getenv("SCRIPGENETOR_MODEL", "qwen/qwen3-235b-a22b-thinking-2507")
+    OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+
+    if not OPENROUTER_API_KEY:
+        raise ValueError("You need to set the OPENROUTER_API_KEY environment variable.")
+
+    openrouter_client = instructor.from_openai(
+        OpenAI(api_key=OPENROUTER_API_KEY, base_url=OPENROUTER_BASE_URL)
+    )
+    response = openrouter_client.chat.completions.create_with_completion(
+        model=OPENROUTER_MODEL,
+        messages=
+        [
+            {"role": "system", "content": SYSTEM_PROMPT_NO_LINK if paper_id == "paper_id" else SYSTEM_PROMPT},
+            {
+                "role": "user",
+                "content": f"Here is the paper I want you to generate a script from, its paper_id is {paper_id} : "
+                + paper,
+            },
+        ],
+        response_model=generate_model_with_context_check(paper_id, paper),
+        temperature=0,
+        max_retries=3,
+        max_tokens=8000,
+    )
+
+    try:
+        result = reconstruct_script(response)
+    except Exception as e:
+        print(e)
+        raise ValueError(f"The model failed the script generation:  {e}")
+    return result
 def _process_script_open_source(paper: str, paper_id:str, end_point_base_url : str ) -> str:
     """Generate a video script for a research paper using OpenAI's GPT-4o model.
 
@@ -465,10 +503,10 @@ def _process_script_open_source(paper: str, paper_id:str, end_point_base_url : s
 
     openai_client = instructor.from_openai(OpenAI(api_key="not-needed",
                                                   base_url=end_point_base_url))
-    response = openai_client.chat.completions.create(
+    response = openai_client.chat.completions.create_with_completion(
         model="not-needed",
         messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": SYSTEM_PROMPT_NO_LINK if paper_id == "paper_id" else SYSTEM_PROMPT},
             {"role": "user", "content":  "Here is the paper I want you to generate a script from : " + paper},
         ],
         response_model=generate_model_with_context_check(paper_id,paper),
@@ -523,7 +561,7 @@ def _process_script_open_gemini(paper: str, paper_id:str, end_point_base_url : s
     ]
 
     gemini_client = instructor.from_gemini(client=genai.GenerativeModel(
-    model_name="gemini-2.5-pro",
+    model_name=GEMINI_MODEL,
     safety_settings=safe,
     generation_config={"temperature": 0, "top_p": 1, "max_output_tokens": 8000},
     ),
@@ -549,7 +587,7 @@ def _process_script_open_gemini(paper: str, paper_id:str, end_point_base_url : s
     return result
 
 
-def process_script(method: Literal["openai", "local", "gemini", "groq"], paper_markdown: str, paper_id : str, end_point_base_url : str, from_pdf: bool=False) -> str:
+def process_script(method: Literal["openai", "local", "gemini", "groq", "openrouter"], paper_markdown: str, paper_id : str, end_point_base_url : str, from_pdf: bool=False) -> str:
     """Generate a video script for a research paper.
 
     Parameters
@@ -571,6 +609,7 @@ def process_script(method: Literal["openai", "local", "gemini", "groq"], paper_m
         pd_corrected_links = adjust_links(paper_markdown , paper_id )
     else:
         pd_corrected_links = paper_markdown
+        paper_id = "paper_id"
     if method == "openai":
         return _process_script_gpt(pd_corrected_links,paper_id)
     if method == "local":
@@ -579,5 +618,7 @@ def process_script(method: Literal["openai", "local", "gemini", "groq"], paper_m
         return _process_script_open_gemini(pd_corrected_links, paper_id, end_point_base_url)
     if method == "groq":
         return _process_script_groq(pd_corrected_links,paper_id)
+    if method == "openrouter":
+        return _process_script_openrouter(pd_corrected_links, paper_id)
     else:
         raise ValueError("Invalid method. Please choose 'openai'.")

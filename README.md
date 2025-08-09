@@ -1,3 +1,9 @@
+---
+title: ArXflix
+app_file: arxflix_gradio.py
+sdk: gradio
+sdk_version: 5.31.0
+---
 
 ![ArXFlix](./assets/image/llama6.png)
 

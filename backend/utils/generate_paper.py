@@ -5,6 +5,16 @@ from bs4 import BeautifulSoup
 from markdownify import MarkdownConverter
 from typing import Any, Literal
 from markthat import MarkThat
+from dotenv import load_dotenv
+
+load_dotenv()
+
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+OCR_MODEL = os.getenv("OCR_MODEL")
+OCR_PROVIDER = os.getenv("OCR_PROVIDER")
+OCR_COORDINATE_EXTRACTOR_MODEL = os.getenv("OCR_COORDINATE_EXTRACTOR_MODEL")
+OCR_PARSING_MODEL = os.getenv("OCR_PARSING_MODEL")
+OCR_FIGURE_DETECTOR_MODEL = os.getenv("OCR_FIGURE_DETECTOR_MODEL")
 
 def _get_arxiv_html_paper_url(paper_id: str) -> str | None:
     url = f"https://ar5iv.labs.arxiv.org/html/{paper_id}/"
@@ -230,13 +240,14 @@ def process_article(method: Literal["arxiv_gpt", "arxiv_html", "pdf"], paper_id:
         return process_article_arxiv_html(paper_id)
     elif method == "pdf":
         import asyncio
-        client = MarkThat(provider="gemini", model="gemini-2.0-flash-001",api_key=os.getenv("GEMINI_API_KEY"),
-                  api_key_figure_detector=os.getenv("GEMINI_API_KEY"),
-                  api_key_figure_extractor=os.getenv("GEMINI_API_KEY"),
-                  api_key_figure_parser=os.getenv("GEMINI_API_KEY"))
+        client = MarkThat(provider=OCR_PROVIDER, model=OCR_MODEL,api_key=OPENROUTER_API_KEY,
+                  api_key_figure_detector=OPENROUTER_API_KEY,
+                  api_key_figure_extractor=OPENROUTER_API_KEY,
+                  api_key_figure_parser=OPENROUTER_API_KEY)
         result = asyncio.run(client.async_convert(pdf_path, extract_figure=True,
-                                    coordinate_model="gemini-2.0-flash-001",
-                                    parsing_model="gemini-2.5-flash-lite",
+                                    figure_detector_model=OCR_FIGURE_DETECTOR_MODEL,
+                                    coordinate_model=OCR_COORDINATE_EXTRACTOR_MODEL,
+                                    parsing_model=OCR_PARSING_MODEL,
                                     ))
         return "\n".join(result)
     else:

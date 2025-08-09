@@ -27,6 +27,8 @@ client.setConfig({
   },
 });
 
+type ScriptProvider = 'openai' | 'local' | 'gemini' | 'openrouter' | 'groq';
+
 function useLocalStorage<T>(key: string, defaultValue: T): [T, (value: T) => void] {
   const [value, setValue] = useState<T>(defaultValue);
 
@@ -99,6 +101,8 @@ export default function Home() {
   const [folder, setFolder] = useLocalStorage<string | undefined>("folder", "3wbcwc");
   const [totalDuration, setTotalDuration] = useLocalStorage<number | undefined>("total_duration", undefined);
   const [state, setState] = useState<"loading" | "error" | undefined>(undefined);
+  const [scriptProvider, setScriptProvider] = useLocalStorage<ScriptProvider>("script_provider", "openrouter");
+  const [openrouterModel, setOpenrouterModel] = useLocalStorage<string | undefined>("openrouter_model", "google/gemini-2.0-flash-exp:free");
 
   const callGeneratePaper = async (arxivId: string) => {
     setState("loading");
@@ -123,7 +127,7 @@ export default function Home() {
     setState("loading");
     const response = await generateScriptGenerateScriptPost({ 
       client: client,
-      query: { method: "openai", paper_markdown: mdContent, paper_id: paper_id },
+      query: { method: scriptProvider, paper_markdown: mdContent, paper_id: paper_id },
     });
 
     if (response.error) {
@@ -196,9 +200,21 @@ export default function Home() {
               <MDEditor height={384} value={mdContent || undefined}
                 onChange={(md) => setMdContent(md)} />
             </div>
+            <div className="flex gap-2 mb-4">
+              <select className="border rounded px-2 py-1" value={scriptProvider || "openrouter"} onChange={(e) => setScriptProvider(e.target.value as ScriptProvider)}>
+                <option value="openai">OpenAI</option>
+                <option value="gemini">Gemini</option>
+                <option value="local">Local (OpenAI-compatible)</option>
+                <option value="openrouter">OpenRouter</option>
+                <option value="groq">Groq</option>
+              </select>
+              {scriptProvider === "openrouter" && (
+                <input className="border rounded px-2 py-1" placeholder="OpenRouter model (optional)" value={openrouterModel ?? ""} onChange={(e) => setOpenrouterModel(e.target.value)} />
+              )}
+            </div>
             <StepButtons onClick={async (state) => {
               if (!mdContent) return;
-              await callGenerateScript(mdContent,arxivId)
+              await callGenerateScript(mdContent, arxivId ?? 'paper_id')
               return state;
             }} />
           </Step>
