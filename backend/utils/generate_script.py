@@ -540,7 +540,7 @@ def _process_script_openrouter(paper: str, paper_id: str) -> str:
 
     openrouter_client = instructor.from_openai(
         OpenAI(api_key=OPENROUTER_API_KEY, base_url=OPENROUTER_BASE_URL),
-        mode=instructor.Mode.OPENROUTER_STRUCTURED_OUTPUTS,
+        mode=instructor.Mode.OPENROUTER_STRUCTURED_OUTPUTS if "gpt" not in OPENROUTER_MODEL else instructor.Mode.JSON_SCHEMA,
         hooks=create_logging_hooks("openrouter"),
     )
     response,raw = openrouter_client.chat.completions.create_with_completion(
