@@ -252,7 +252,7 @@ body, #root, .gradio-container {
 with gr.Blocks(theme=gr.themes.Soft(), css=CUSTOM_CSS) as demo:
     gr.HTML("""
     <div id="arx-header">ArXFlix Video Generator</div>
-    <div id="arx-sub">Minimal UI to turn arXiv papers into short videos</div>
+    <div id="arx-sub">Minimal UI to turn papers into short videos</div>
     """)
 
     with gr.Row():
