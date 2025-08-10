@@ -18,7 +18,7 @@
 # misc
 .DS_Store
 *.pem
-
+env_arxflix/
 # debug
 npm-debug.log*
 yarn-debug.log*

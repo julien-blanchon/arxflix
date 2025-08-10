@@ -83,8 +83,8 @@ export const ArxflixComposition: React.FC<CompositionPropsType> = ({
 	const figures: RichContent[] = [];
 	// Introduction takes 2 seconds at the beginning
 	const introductionDurationInSeconds = Math.round(2 * fps);
-	// Outro takes 5 seconds at the end
-	const outroDurationInSeconds = Math.round(5 * fps);
+	// No outro section needed
+	const outroDurationInSeconds = 0;
 	return (
 		<div ref={ref}>
 			<AbsoluteFill>
@@ -98,17 +98,6 @@ export const ArxflixComposition: React.FC<CompositionPropsType> = ({
 						<div className="row-span-3 flex justify-center items-center relative"
 						>
 							<Img className="object-fill min-h-[500px] max-h-[650px]" src={introData.figure} />
-							<div className="text-7xl text-black absolute top-0 right-0 justify-center items-center flex flex-col gap-5 p-5 will-change-transform transform-gpu"
-								style={{ transform: `scale(${spring({ fps, frame, })}` }}
-							>
-								<div>
-									Voice by
-								</div>
-								<div className="flex justify-center items-center max-h-40">
-									<Img className="object-cover max-h-[150px]"
-										src={staticFile("static/LMNT_Logo_Full.png")} />
-								</div>
-							</div>
 						</div>
 
 						<div className='row-span-3'>
@@ -171,32 +160,7 @@ export const ArxflixComposition: React.FC<CompositionPropsType> = ({
 						</div>
 					</div>
 				</Sequence>
-				<Sequence from={durationInFrames - outroDurationInSeconds} durationInFrames={outroDurationInSeconds}>
-					<div
-						className="grid grid-cols-1 grid-rows-5 w-full h-full text-white p-5 bg-orange-50"
-						style={{
-							fontFamily
-						}}
-					>
-						<Audio src={staticFile("static/LMNT.wav")} />
-						<div className="row-span-3 h-full justify-center items-center flex">
-							<div className="grid grid-cols-3 gap-20 self-center h-[600px] p-28">
-								<Img className="object-fill self-center scale-110" src={staticFile("static/LMNT_Logo_Full.png")} />
-								<div className="bg-transparent border-2 border-black rounded-3xl self-center h-full w-full"></div>
-								<div className="bg-transparent border-2 border-black rounded-3xl self-center h-full w-full"></div>
 
-							</div>
-						</div>
-
-						<div className='row-span-2 h-full flex w-full'>
-							<div
-								className="font-bold text-7xl text-black text-center self-end w-full pb-28"
-							>
-								Thank LMNT for supporting this channel !
-							</div>
-						</div>
-					</div>
-				</Sequence>
 			</AbsoluteFill>
 		</div>
 	);

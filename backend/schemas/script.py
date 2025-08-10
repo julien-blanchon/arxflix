@@ -112,7 +112,7 @@ def generate_model_with_context_check(paper_id : str ,paper_content : str):
                 },
                 {
                     "component_type": "Figure",
-                    "content": "https://arxiv.org/html/2405.11273/figure1.png",
+                    "content": "https://arxiv.org/html/2405.11273/figure1.png" if paper_id != "paper_id" else "/Users/davidperso/projects/arxflix/images/figure1.png",
                     "position": 2
                 }
             ]]
@@ -130,7 +130,7 @@ def generate_model_with_context_check(paper_id : str ,paper_content : str):
             if not components:
                 errors.append(ValueError("Script must contain at least one component"))
 
-            if values.paper_id != paper_id:
+            if paper_id != "paper_id" and values.paper_id != paper_id:
                 logger.warning(f"Paper ID mismatch: expected {paper_id}, got {values.paper_id}, correcting")
                 errors.append(ValueError(f"The paper id is {paper_id}, you wrote a wrong one, correct it everywhere"))
                 
@@ -164,7 +164,7 @@ def generate_model_with_context_check(paper_id : str ,paper_content : str):
                                     - Figure, 
                                     - Equation,
                                     - Headline"""))
-                    logger.error(errors[-1])
+                    logger.info(errors[-1])
                 # Check if the figure link is accessible
                     try:
                         response = requests.head(comp.content, timeout=5)
@@ -186,7 +186,7 @@ def generate_model_with_context_check(paper_id : str ,paper_content : str):
 <example_figures>"""))
             if errors:
                 print(errors)
-                logger.error(errors)
+                logger.info(errors)
                 raise ValueError(errors)
             return values
     return ArxflixScript

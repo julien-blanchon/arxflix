@@ -4,7 +4,17 @@ import urllib.request
 from bs4 import BeautifulSoup
 from markdownify import MarkdownConverter
 from typing import Any, Literal
+from markthat import MarkThat
+from dotenv import load_dotenv
 
+load_dotenv()
+
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+OCR_MODEL = os.getenv("OCR_MODEL")
+OCR_PROVIDER = os.getenv("OCR_PROVIDER")
+OCR_COORDINATE_EXTRACTOR_MODEL = os.getenv("OCR_COORDINATE_EXTRACTOR_MODEL")
+OCR_PARSING_MODEL = os.getenv("OCR_PARSING_MODEL")
+OCR_FIGURE_DETECTOR_MODEL = os.getenv("OCR_FIGURE_DETECTOR_MODEL")
 
 def _get_arxiv_html_paper_url(paper_id: str) -> str | None:
     url = f"https://ar5iv.labs.arxiv.org/html/{paper_id}/"
@@ -214,7 +224,7 @@ def process_article_arxiv_html(paper_id: str) -> str:
     return markdown_article
 
 
-def process_article(method: Literal["arxiv_gpt", "arxiv_html"], paper_id: str) -> str:
+def process_article(method: Literal["arxiv_gpt", "arxiv_html", "pdf"], paper_id: str, pdf_path: str=None) -> str:
     """Process an article from a given URL and save it as a markdown file.
 
     Args:
@@ -228,6 +238,18 @@ def process_article(method: Literal["arxiv_gpt", "arxiv_html"], paper_id: str) -
         return process_article_arxiv_gpt(paper_id)
     elif method == "arxiv_html":
         return process_article_arxiv_html(paper_id)
+    elif method == "pdf":
+        import asyncio
+        client = MarkThat(provider=OCR_PROVIDER, model=OCR_MODEL,api_key=OPENROUTER_API_KEY,
+                  api_key_figure_detector=OPENROUTER_API_KEY,
+                  api_key_figure_extractor=OPENROUTER_API_KEY,
+                  api_key_figure_parser=OPENROUTER_API_KEY)
+        result = asyncio.run(client.async_convert(pdf_path, extract_figure=True,
+                                    figure_detector_model=OCR_FIGURE_DETECTOR_MODEL,
+                                    coordinate_model=OCR_COORDINATE_EXTRACTOR_MODEL,
+                                    parsing_model=OCR_PARSING_MODEL,
+                                    ))
+        return "\n".join(result)
     else:
         raise ValueError(
             "Invalid article method. Please choose either 'arxiv_gpt' or 'arxiv_html'."

@@ -16,7 +16,7 @@ from datetime import timedelta
 from pathlib import Path
 import logging
 import time
-import mlx_whisper
+
 from groq import Groq
 from deepgram import (
     DeepgramClient,
@@ -25,6 +25,14 @@ from deepgram import (
 )
 import traceback
 import requests
+import soundfile as sf
+import shutil
+from kokoro import KPipeline
+
+try:
+    import mlx_whisper
+except ImportError:
+    mlx_whisper = None
 
 from backend.type import Text, Caption, Figure, Equation, Headline, RichContent
 
@@ -222,7 +230,8 @@ def _generate_audio_and_caption_elevenlabs(
                     
                     elif (sys.platform == 'darwin'
                     and hasattr(os, 'uname') 
-                    and os.uname().machine in ('arm64', 'aarch64')):
+                    and os.uname().machine in ('arm64', 'aarch64')
+                    and mlx_whisper is not None):
                         result = mlx_whisper.transcribe(audio=audio_path,word_timestamps=True)
                         script_content.captions = _make_caption_whisper(result)
                         
@@ -359,6 +368,126 @@ def _generate_audio_and_caption_lmnt(
     return script_contents
 
 
+def _generate_audio_and_caption_kokoro(
+    script_contents: list[RichContent | Text],
+    temp_dir: Path = Path(tempfile.gettempdir()),
+    offset: float = 0.5,
+) -> list[RichContent | Text]:
+    """Generate audio and caption for each text segment in the script using Kokoro TTS
+
+    Parameters
+    ----------
+    script_contents : list[RichContent  |  Text]
+        List of RichContent or Text objects
+    temp_dir : Path, optional
+        Temporary directory to store the audio files, by default Path(tempfile.gettempdir())
+    offset : float, optional
+        Offset between each text segment, by default 0.5
+
+    Returns
+    -------
+    list[RichContent | Text]
+        List of RichContent or Text objects with audio and caption
+    """
+    DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY", "")
+    
+    # Initialize Kokoro pipeline with American English
+    pipeline = KPipeline(lang_code='a')  # 'a' for American English
+    
+    # If the temp directory does not exist, create it
+    if not os.path.exists(temp_dir):
+        os.makedirs(temp_dir)
+    
+    try:
+        for i, script_content in enumerate(script_contents):
+            match script_content:
+                case RichContent(content=content):
+                    pass
+                case Text(content=content, audio=None, captions=None):
+                    logger.info(f"Generating audio and caption for text {i} using Kokoro")
+                    audio_path = (temp_dir / f"audio_{i}.wav").absolute().as_posix()
+                    
+                    logger.info(f"Generating audio {i} at {audio_path}")
+                    
+                    # Generate audio using Kokoro
+                    generator = pipeline(content, voice='af_heart', speed=1.0)
+                    
+                    # Get the first (and typically only) result from the generator
+                    for j, (gs, ps, audio) in enumerate(generator):
+                        if j == 0:  # Take the first result
+                            # Save audio using soundfile with 24kHz sample rate (Kokoro default)
+                            sf.write(audio_path, audio, 24000)
+                            break
+                    
+                    # Load audio for duration calculation
+                    audio_tensor, sr = torchaudio.load(audio_path)
+                    total_audio_duration = audio_tensor.size(1) / sr
+                    total_audio_duration += offset
+                    
+                    script_content.audio_path = audio_path
+                    script_content.end = total_audio_duration
+                    
+                    # Generate captions using the same transcription logic as other methods
+                    if DEEPGRAM_API_KEY == "" and not (sys.platform == 'darwin'
+                        and hasattr(os, 'uname') 
+                        and os.uname().machine in ('arm64', 'aarch64')):
+                        model = whisper.load_model("base.en")
+                        result = model.transcribe(audio_path, word_timestamps=True)
+                        script_content.captions = _make_caption_whisper(result)
+                    
+                    elif (sys.platform == 'darwin'
+                        and hasattr(os, 'uname') 
+                        and os.uname().machine in ('arm64', 'aarch64')
+                        and mlx_whisper is not None):
+                        result = mlx_whisper.transcribe(audio=audio_path, word_timestamps=True)
+                        script_content.captions = _make_caption_whisper(result)
+                        
+                    else:
+                        deepgram = DeepgramClient()
+                        with open(audio_path, "rb") as file:
+                            buffer_data = file.read()
+
+                        payload: FileSource = {
+                            "buffer": buffer_data,
+                        }
+
+                        options = PrerecordedOptions(
+                            model="nova-2",
+                            smart_format=True,
+                        )
+
+                        response = deepgram.listen.rest.v("1").transcribe_file(payload, options)
+                        result = response.to_dict()["results"]["channels"][0]["alternatives"][0]["words"]
+                        script_content.captions = _make_caption_deepgram(result)
+
+                    logger.info(
+                        f"Generated audio and caption for text {i}, duration: {total_audio_duration}"
+                    )
+
+    except Exception as e:
+        logger.error(f"Error generating audio and caption with Kokoro: {e}, {traceback.format_exc()}")
+        raise e
+
+    offset_fix = 0
+    # Initially all text caption start at time 0
+    # We need to offset them by the end of the previous text
+    for i, script_content in enumerate(script_contents):
+        if not (isinstance(script_content, Text)):
+            continue
+        if not script_content.captions:
+            continue
+        for caption in script_content.captions:
+            caption.start += offset_fix
+            caption.end += offset_fix
+        script_content.start = offset_fix
+        if script_content.end:
+            script_content.end = script_content.end + offset_fix
+        else:
+            script_content.end = script_content.captions[-1].end
+        offset_fix = script_content.end
+    return script_contents
+
+
 def fill_rich_content_time(
     script_contents: list[RichContent | Text],
 ) -> list[RichContent | Text]:
@@ -392,6 +521,10 @@ def fill_rich_content_time(
 
         if not next_text_group:
             break
+
+        # Skip if there are no rich content elements to assign time to
+        if not current_rich_content_group:
+            continue
 
         total_duration = next_text_group[-1].end - next_text_group[0].start
         duration_per_rich_content = total_duration / len(current_rich_content_group)
@@ -487,6 +620,13 @@ def export_srt(full_audio_path: str, out_path: str) -> None:
 
 
 def export_rich_content_json(rich_content: list[RichContent], out_path: str) -> None:
+    """Export the rich content to a json file.
+
+    If a Figure has a local file path (e.g. "/Users/foo/bar/image.png") we copy the
+    file next to the generated rich.json and rewrite the reference so that
+    Remotion can fetch it through the temporary HTTP server (relative URL).
+    Remote URLs (starting with http/https) are left untouched.
+    """
     """Export the rich content to a json file
 
     Parameters
@@ -496,28 +636,44 @@ def export_rich_content_json(rich_content: list[RichContent], out_path: str) -> 
     out_path : str
         Path to save the json file
     """
-    # Export rich content to json
+    # Prepare directory where we will write the JSON – we also copy any local
+    # images next to it so they can be served by the temporary HTTP server.
+    out_dir = Path(out_path).parent
+    os.makedirs(out_dir, exist_ok=True)
+
     rich_content_dict = []
     for i, content in enumerate(rich_content):
-        content_dict = {
+        # If this is a local Figure (not starting with http/https), copy it next
+        # to the json file and rewrite the reference to a relative URL that the
+        # browser can fetch through http://localhost:<port>/.
+        if isinstance(content, Figure):
+            path_obj = Path(content.content)
+            if path_obj.is_file() and not str(content.content).lower().startswith(("http://", "https://")):
+                destination = out_dir / path_obj.name
+                # Only copy if we haven't already.
+                if not destination.exists():
+                    shutil.copy(path_obj, destination)
+                # Use only the filename in the JSON (relative URL).
+                content.content = path_obj.name
+        rich_content_dict.append({
             "type": content.__class__.__name__.lower(),
             "content": content.content,
             "start": content.start,
             "end": content.end,
-        }
-        rich_content_dict.append(content_dict)
+        })
+
     df = pd.DataFrame(rich_content_dict)
     df.to_json(out_path, orient="records")
 
 
 def generate_audio_and_caption(
-    method: Literal["elevenlabs", "lmnt"], script: str
+    method: Literal["elevenlabs", "lmnt", "kokoro"], script: str
 ) -> list[RichContent | Text]:
     """Generate audio and caption for the script
 
     Parameters
     ----------
-    method : Literal["elevenlabs", "lmnt"]
+    method : Literal["elevenlabs", "lmnt", "kokoro"]
         Method to generate audio and caption
     script : str
         Script to generate audio and caption
@@ -532,6 +688,8 @@ def generate_audio_and_caption(
         script_contents = _generate_audio_and_caption_elevenlabs(script_contents)
     elif method == "lmnt":
         script_contents = _generate_audio_and_caption_lmnt(script_contents)
+    elif method == "kokoro":
+        script_contents = _generate_audio_and_caption_kokoro(script_contents)
     else:
         raise ValueError(f"Unknown method: {method}")
     return script_contents

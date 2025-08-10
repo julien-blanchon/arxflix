@@ -47,7 +47,7 @@ api.add_middleware(
 
 @cli.command("generate_paper")
 @api.get("/generate_paper/")
-def generate_paper(method: Literal["arxiv_gpt", "arxiv_html"], paper_id: str) -> str:
+def generate_paper(method: Literal["arxiv_gpt", "arxiv_html", "pdf"], paper_id: str, pdf_path: str=None) -> str:
     """Generate paper markdown using ArxivGPT or ArxivHTML api
 
     Parameters
@@ -65,13 +65,13 @@ def generate_paper(method: Literal["arxiv_gpt", "arxiv_html"], paper_id: str) ->
     logger.info(
         f"Generating paper markdown using method: {method} and paper_id: {paper_id}"
     )
-    paper = process_article(method, paper_id)
+    paper = process_article(method, paper_id, pdf_path)
     return paper
 
 
 @cli.command("generate_script")
 @api.post("/generate_script/")
-def generate_script(method: Literal["openai","local","gemini"], paper_markdown: str,paper_id: str, end_point_base_url : str=None) -> str:
+def generate_script(method: Literal["openai","local","gemini","openrouter","groq"], paper_markdown: str,paper_id: str, end_point_base_url : str=None, from_pdf: bool=False) -> str:
     """Generate video script from paper markdown using an LLM
 
     Parameters
@@ -86,8 +86,10 @@ def generate_script(method: Literal["openai","local","gemini"], paper_markdown: 
     str
         The video script
     """
+    if from_pdf:
+        paper_id = "paper_id"
     logger.info(f"Generating script from paper: \n{paper_markdown}")
-    script = process_script(method, paper_markdown,paper_id,end_point_base_url)
+    script = process_script(method, paper_markdown,paper_id,end_point_base_url,from_pdf)
     return script
 
 
@@ -95,7 +97,7 @@ def generate_script(method: Literal["openai","local","gemini"], paper_markdown: 
 @api.post("/generate_assets/")
 def generate_assets(
     script: str,
-    method: Literal["elevenlabs", "lmnt"],
+    method: Literal["elevenlabs", "lmnt", "kokoro"] = "kokoro",
     mp3_output: str = "public/audio.wav",
     srt_output: str = "public/output.srt",
     rich_output: str = "public/output.json",
@@ -106,8 +108,8 @@ def generate_assets(
     ----------
     script : str
         The video script
-    method : "elevenlabs" | "lmnt"
-        The method to generate audio
+    method : "elevenlabs" | "lmnt" | "kokoro", optional
+        The method to generate audio, by default "kokoro"
     mp3_output : str, optional
         The output mp3 file path, by default "public/audio.wav"
     srt_output : str, optional
