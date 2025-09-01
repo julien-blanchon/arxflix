@@ -12,7 +12,8 @@ VIDEO_HEIGHT = 1080
 VIDEO_WIDTH = 1920
 REMOTION_ROOT_PATH = Path("frontend/src/remotion/index.ts")
 REMOTION_COMPOSITION_ID = "Arxflix"
-REMOTION_CONCURRENCY = 6
+# Consider making this configurable or determining it via benchmarking
+OPTIMAL_CONCURRENCY = 6 
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,7 @@ def get_free_port():
 class CompositionProps:
     durationInSeconds: int = 5
     subtitlesFileName: str = "frontend/public/output.srt"
-    audioFileName: str = "frontend/public/audio.wav"
+    audioFileName: str = "frontend/public/output.wav"
     richContentFileName: str = "frontend/public/output.json"
     waveColor: str = "#a3a5ae"
     subtitlesLinePerPage: int = 2
@@ -65,6 +66,7 @@ def expose_directory(directory: Path):
 def process_video(
     input: Path,
     output: Path = Path("frontend/public/output.mp4"),
+    concurrency: int = OPTIMAL_CONCURRENCY,
 ):
     # Get the paper id,
     # Pick an available port,
@@ -102,6 +104,8 @@ def process_video(
             free_port,
         ],
         cwd=input.absolute().as_posix(),
+        stdout=subprocess.DEVNULL, # Hide http-server logs
+        stderr=subprocess.DEVNULL,
     ) as static_server:
         print(f"Exposed directory {input}")
         sleep(2)
@@ -114,27 +118,44 @@ def process_video(
             richContentFileName=f"{base_url}/rich.json",
         )
         logger.info(f"Generating video to {output}")
-        render_proc = subprocess.run(
-            [
-                "npx",
-                "remotion",
-                "render",
-                REMOTION_ROOT_PATH.absolute().as_posix(),
-                "--props",
-                json.dumps(asdict(composition_props)),
-                "--compositionId",
-                REMOTION_COMPOSITION_ID,
-                "--concurrency",
-                str(REMOTION_CONCURRENCY),
-                "--output",
-                output.absolute().as_posix(),
-            ],
+        
+        render_command = [
+            "npx",
+            "remotion",
+            "render",
+            REMOTION_ROOT_PATH.absolute().as_posix(),
+            "--props",
+            json.dumps(asdict(composition_props)),
+            "--compositionId",
+            REMOTION_COMPOSITION_ID,
+            "--concurrency",
+            str(concurrency),
+            "--gl",
+            "angle",
+            "--hardware-acceleration",
+            "if-possible",
+            "--output",
+            output.absolute().as_posix(),
+        ]
+
+        logger.info(f"Running command: {' '.join(render_command)}")
+
+        # Use Popen and let it write directly to the terminal.
+        # This allows Remotion to render its interactive progress bar.
+        render_proc = subprocess.Popen(
+            render_command,
             cwd=Path("frontend").absolute().as_posix(),
         )
+
+        # Wait for the process to complete and get the final return code
+        return_code = render_proc.wait()
+        
         static_server.terminate()
-        if render_proc.returncode != 0:
-            raise RuntimeError(f"Remotion render failed with exit code {render_proc.returncode}")
+        
+        if return_code != 0:
+            raise RuntimeError(f"Remotion render failed with exit code {return_code}")
         if not output.exists():
             raise FileNotFoundError(str(output))
+            
         logger.info(f"Generated video to {output}")
         return output
