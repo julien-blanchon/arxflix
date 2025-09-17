@@ -427,39 +427,14 @@ def _generate_audio_and_caption_kokoro(
                     script_content.audio_path = audio_path
                     script_content.end = total_audio_duration
                     
-                    # Generate captions using the same transcription logic as other methods
-                    if DEEPGRAM_API_KEY == "" and not (sys.platform == 'darwin'
-                        and hasattr(os, 'uname') 
-                        and os.uname().machine in ('arm64', 'aarch64')):
-                        model = whisper.load_model("base.en")
-                        result = model.transcribe(audio_path, word_timestamps=True)
-                        script_content.captions = _make_caption_whisper(result)
-                    
-                    elif (sys.platform == 'darwin'
+
+                    if (sys.platform == 'darwin'
                         and hasattr(os, 'uname') 
                         and os.uname().machine in ('arm64', 'aarch64')
                         and mlx_whisper is not None):
                         result = mlx_whisper.transcribe(audio=audio_path, word_timestamps=True)
                         script_content.captions = _make_caption_whisper(result)
                         
-                    else:
-                        deepgram = DeepgramClient()
-                        with open(audio_path, "rb") as file:
-                            buffer_data = file.read()
-
-                        payload: FileSource = {
-                            "buffer": buffer_data,
-                        }
-
-                        options = PrerecordedOptions(
-                            model="nova-2",
-                            smart_format=True,
-                        )
-
-                        response = deepgram.listen.rest.v("1").transcribe_file(payload, options)
-                        result = response.to_dict()["results"]["channels"][0]["alternatives"][0]["words"]
-                        script_content.captions = _make_caption_deepgram(result)
-
                     logger.info(
                         f"Generated audio and caption for text {i}, duration: {total_audio_duration}"
                     )
