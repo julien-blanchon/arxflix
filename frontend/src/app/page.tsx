@@ -102,7 +102,7 @@ export default function Home() {
   const [totalDuration, setTotalDuration] = useLocalStorage<number | undefined>("total_duration", undefined);
   const [state, setState] = useState<"loading" | "error" | undefined>(undefined);
   const [scriptProvider, setScriptProvider] = useLocalStorage<ScriptProvider>("script_provider", "openrouter");
-  const [openrouterModel, setOpenrouterModel] = useLocalStorage<string | undefined>("openrouter_model", "google/gemini-2.0-flash-exp:free");
+  const [openrouterModel, setOpenrouterModel] = useLocalStorage<string | undefined>("openrouter_model", "google/gemini-2.0-flash-001");
 
   const callGeneratePaper = async (arxivId: string) => {
     setState("loading");

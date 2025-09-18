@@ -12,6 +12,7 @@ class ScriptComponentType(str):
     FIGURE = "Figure"
     EQUATION = "Equation"
     HEADLINE = "Headline"
+    CODE_SNIPPET = "Code_Snippet"
 
 class ScriptComponent(BaseModel):
     component_type: str = Field(
@@ -42,6 +43,137 @@ class ScriptComponent(BaseModel):
         examples=[0, 1, 2, 3]
     )
 
+
+class TutorialScriptComponent(BaseModel):
+    component_type: str = Field(
+        ...,
+        description="""Type of script component for tutorial content
+        Only one of : 
+        - Text 
+        - Figure, 
+        - Equation,
+        - Headline,
+        - Code_Snippet
+        """,
+        examples=["Text", "Figure", "Equation", "Headline", "Code_Snippet"]
+    )
+    content: str = Field(
+        ...,
+        description="Content of the component",
+        examples=[
+            "Welcome to this tutorial! Today we'll learn how to build a REST API.",
+            "https://example.com/tutorial-diagram.png",
+            "f(x) = ax + b",
+            "Building Your First API",
+            "from fastapi import FastAPI\n\napp = FastAPI()\n\n@app.get('/')\ndef read_root():\n    return {'Hello': 'World'}"
+        ]
+    )
+    position: int = Field(
+        ...,
+        ge=0,
+        description="Position in the script (0-based index)",
+        examples=[0, 1, 2, 3]
+    )
+
+    @model_validator(mode='after')
+    def validate_content(cls, values):
+        component_type = values.component_type
+        logger.info(f"Validating tutorial script component")
+        
+        if component_type == ScriptComponentType.EQUATION:
+            if '$' in values.content or r'\[' in values.content or '\n' in values.content:
+                raise ValueError("Equation must not contain $, \\[, or multiple lines")
+        
+        elif component_type == ScriptComponentType.TEXT:
+            if re.search(r'^\s*[-\d]\.\s', values.content):
+                raise ValueError("Text must not contain markdown listing patterns")
+            
+            if len(values.content.strip()) < 10:
+                raise ValueError("Text component must contain at least 10 characters")
+        
+        elif component_type == ScriptComponentType.CODE_SNIPPET:
+            if len(values.content.strip()) < 5:
+                raise ValueError("Code snippet must contain at least 5 characters")
+            
+            # Check for common code patterns
+            # code_indicators = ['def ', 'function ', 'class ', 'import ', 'from ', '=', '{', '}', '(', ')', ';', 'const ', 'let ', 'var ']
+            # if not any(indicator in values.content for indicator in code_indicators):
+            #     raise ValueError("Code snippet should contain recognizable code patterns")
+        
+        elif component_type.strip() not in ["Text", "Figure", "Equation", "Headline", "Code_Snippet"]:
+            raise ValueError(f"""{component_type} is not a valid component_type.
+                             Type of authorized script component for tutorials:
+                                    - Text 
+                                    - Figure, 
+                                    - Equation,
+                                    - Headline,
+                                    - Code_Snippet""")
+        
+        return values
+
+
+class GeneralScriptComponent(BaseModel):
+    component_type: str = Field(
+        ...,
+        description="""Type of script component for general content
+        Only one of : 
+        - Text 
+        - Figure, 
+        - Equation,
+        - Headline,
+        - Code_Snippet
+        """,
+        examples=["Text", "Figure", "Equation", "Headline", "Code_Snippet"]
+    )
+    content: str = Field(
+        ...,
+        description="Content of the component",
+        examples=[
+            "Welcome to this overview! Today we'll explore the key concepts of remote work.",
+            "https://example.com/infographic.png",
+            "ROI = (Gain - Cost) / Cost * 100",
+            "The Future of Remote Work",
+            "# Example configuration\nremote_work_policy = {\n    'flexible_hours': True,\n    'home_office_budget': 1000\n}"
+        ]
+    )
+    position: int = Field(
+        ...,
+        ge=0,
+        description="Position in the script (0-based index)",
+        examples=[0, 1, 2, 3]
+    )
+
+    @model_validator(mode='after')
+    def validate_content(cls, values):
+        component_type = values.component_type
+        logger.info(f"Validating general script component")
+        
+        if component_type == ScriptComponentType.EQUATION:
+            if '$' in values.content or r'\[' in values.content or '\n' in values.content:
+                raise ValueError("Equation must not contain $, \\[, or multiple lines")
+        
+        elif component_type == ScriptComponentType.TEXT:
+            if re.search(r'^\s*[-\d]\.\s', values.content):
+                raise ValueError("Text must not contain markdown listing patterns")
+            
+            if len(values.content.strip()) < 10:
+                raise ValueError("Text component must contain at least 10 characters")
+        
+        elif component_type == ScriptComponentType.CODE_SNIPPET:
+            if len(values.content.strip()) < 5:
+                raise ValueError("Code snippet must contain at least 5 characters")
+        
+        elif component_type.strip() not in ["Text", "Figure", "Equation", "Headline", "Code_Snippet"]:
+            raise ValueError(f"""{component_type} is not a valid component_type.
+                             Type of authorized script component for general content:
+                                    - Text 
+                                    - Figure, 
+                                    - Equation,
+                                    - Headline,
+                                    - Code_Snippet""")
+        
+        return values
+
     @model_validator(mode='after')
     def validate_content(cls, values):
         component_type = values.component_type
@@ -62,14 +194,19 @@ class ScriptComponent(BaseModel):
             
             if len(values.content.strip()) < 10:
                 raise ValueError("Text component must contain at least 10 characters")
-        elif component_type.strip() not in ["Text", "Figure", "Equation", "Headline"]:
-            raise ValueError(f"""{component_type} is not a valide component_type.
-                             Type of autorized script component
-                                    Only one of : 
+        
+        elif component_type == ScriptComponentType.CODE_SNIPPET:
+            if len(values.content.strip()) < 5:
+                raise ValueError("Code snippet must contain at least 5 characters")
+        
+        elif component_type.strip() not in ["Text", "Figure", "Equation", "Headline", "Code_Snippet"]:
+            raise ValueError(f"""{component_type} is not a valid component_type.
+                             Type of authorized script component for general content:
                                     - Text 
                                     - Figure, 
                                     - Equation,
-                                    - Headline""")
+                                    - Headline,
+                                    - Code_Snippet""")
         
         return values
 
@@ -190,6 +327,187 @@ def generate_model_with_context_check(paper_id : str ,paper_content : str):
                 raise ValueError(errors)
             return values
     return ArxflixScript
+
+
+def generate_tutorial_model_with_context_check(source_identifier: str, content: str):
+    """Generate specialized Pydantic model for tutorial content."""
+    class TutorialScript(BaseModel):
+        title: str = Field(
+            ...,
+            description="Title of the tutorial video",
+            examples=[
+                "Building a REST API with FastAPI: Complete Tutorial",
+                "Python for Beginners: Your First Program",
+                "React Hooks Explained: useState and useEffect"
+            ]
+        )
+        target_duration_minutes: float = Field(
+            ...,
+            ge=0,
+            le=6,
+            description="Target video duration in minutes",
+            examples=[5.0, 5.5, 6.0]
+        )
+        components: List[TutorialScriptComponent] = Field(
+            ...,
+            description="List of tutorial script components",
+            examples=[[
+                {
+                    "component_type": "Headline",
+                    "content": "Building Your First FastAPI Application",
+                    "position": 0
+                },
+                {
+                    "component_type": "Text",
+                    "content": "Welcome to this comprehensive tutorial on building REST APIs with FastAPI.",
+                    "position": 1
+                },
+                {
+                    "component_type": "Code_Snippet",
+                    "content": "from fastapi import FastAPI\n\napp = FastAPI()\n\n@app.get('/')\ndef read_root():\n    return {'Hello': 'World'}",
+                    "position": 2
+                }
+            ]]
+        )
+
+        @model_validator(mode='after')
+        def validate_tutorial_script_structure(cls, values):
+            errors = []
+            logger.warning(f"Validating tutorial script structure for: {source_identifier}")
+
+            components = values.components
+
+            if not components:
+                errors.append(ValueError("Tutorial script must contain at least one component"))
+
+                
+            sorted_components = sorted(components, key=lambda x: x.position)
+            
+            positions = [comp.position for comp in sorted_components]
+            if positions != list(range(len(positions))):
+                errors.append(ValueError("Component positions must be consecutive integers starting from 0"))
+
+            if sorted_components[0].component_type.strip() != ScriptComponentType.HEADLINE:
+                errors.append(ValueError("Tutorial script must start with a Headline component"))
+            
+            # Allow consecutive Text components for tutorials (common in educational content)
+            for i in range(1, len(sorted_components)):
+                if (sorted_components[i].component_type.strip() == sorted_components[i-1].component_type.strip() and 
+                    sorted_components[i].component_type.strip() not in [ScriptComponentType.TEXT, ScriptComponentType.CODE_SNIPPET]):
+                    errors.append(ValueError(f"Consecutive {sorted_components[i].component_type.strip()} components are not allowed (except Text and Code_Snippet)"))
+
+            values.components = sorted_components
+
+            # Validate component types are appropriate for tutorials
+            for comp in values.components:
+                if comp.component_type.strip() not in ["Text", "Figure", "Equation", "Headline", "Code_Snippet"]:
+                    errors.append(ValueError(f"""{comp.component_type.strip()} is not a valid component_type for tutorials.
+                             Authorized component types for tutorials:
+                                    - Text 
+                                    - Figure, 
+                                    - Equation,
+                                    - Headline,
+                                    - Code_Snippet"""))
+                    logger.info(errors[-1])
+
+            if errors:
+                print(errors)
+                logger.info(errors)
+                raise ValueError(errors)
+            return values
+    
+    return TutorialScript
+
+
+def generate_general_model_with_context_check(source_identifier: str, content: str):
+    """Generate specialized Pydantic model for general content."""
+    class GeneralScript(BaseModel):
+        title: str = Field(
+            ...,
+            description="Title of the general content video",
+            examples=[
+                "The Future of Remote Work: Key Trends and Insights",
+                "Understanding Climate Change: What You Need to Know",
+                "Cryptocurrency Explained: A Beginner's Guide"
+            ]
+        )
+        target_duration_minutes: float = Field(
+            ...,
+            ge=0,
+            le=6,
+            description="Target video duration in minutes",
+            examples=[5.0, 5.5, 6.0]
+        )
+        components: List[GeneralScriptComponent] = Field(
+            ...,
+            description="List of general script components",
+            examples=[[
+                {
+                    "component_type": "Headline",
+                    "content": "The Future of Remote Work",
+                    "position": 0
+                },
+                {
+                    "component_type": "Text",
+                    "content": "Remote work has transformed the modern workplace, bringing both opportunities and challenges.",
+                    "position": 1
+                },
+                {
+                    "component_type": "Code_Snippet",
+                    "content": "# Remote work statistics\nremote_workers = {\n    '2020': '5%',\n    '2024': '42%'\n}",
+                    "position": 2
+                }
+            ]]
+        )
+
+        @model_validator(mode='after')
+        def validate_general_script_structure(cls, values):
+            errors = []
+            logger.warning(f"Validating general script structure for: {source_identifier}")
+
+            components = values.components
+
+            if not components:
+                errors.append(ValueError("General script must contain at least one component"))
+
+
+                
+            sorted_components = sorted(components, key=lambda x: x.position)
+            
+            positions = [comp.position for comp in sorted_components]
+            if positions != list(range(len(positions))):
+                errors.append(ValueError("Component positions must be consecutive integers starting from 0"))
+
+            if sorted_components[0].component_type.strip() != ScriptComponentType.HEADLINE:
+                errors.append(ValueError("General script must start with a Headline component"))
+            
+            # Allow consecutive Text components for general content
+            for i in range(1, len(sorted_components)):
+                if (sorted_components[i].component_type.strip() == sorted_components[i-1].component_type.strip() and 
+                    sorted_components[i].component_type.strip() not in [ScriptComponentType.TEXT]):
+                    errors.append(ValueError(f"Consecutive {sorted_components[i].component_type.strip()} components are not allowed (except Text)"))
+
+            values.components = sorted_components
+
+            # Validate component types are appropriate for general content
+            for comp in values.components:
+                if comp.component_type.strip() not in ["Text", "Figure", "Equation", "Headline", "Code_Snippet"]:
+                    errors.append(ValueError(f"""{comp.component_type.strip()} is not a valid component_type for general content.
+                             Authorized component types for general content:
+                                    - Text 
+                                    - Figure, 
+                                    - Equation,
+                                    - Headline,
+                                    - Code_Snippet"""))
+                    logger.info(errors[-1])
+
+            if errors:
+                print(errors)
+                logger.info(errors)
+                raise ValueError(errors)
+            return values
+    
+    return GeneralScript
 
 
 def parse_script(raw_script: str, paper_id: str) -> BaseModel:

@@ -532,7 +532,7 @@ def _process_script_openrouter(paper: str, paper_id: str) -> str:
     Uses the OpenAI SDK pointed to the OpenRouter base URL.
     """
     OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-    OPENROUTER_MODEL = os.getenv("SCRIPGENETOR_MODEL", "qwen/qwen3-235b-a22b-thinking-2507")
+    OPENROUTER_MODEL = os.getenv("SCRIPGENETOR_MODEL", "google/gemini-2.0-flash-001")
     OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
     if not OPENROUTER_API_KEY:

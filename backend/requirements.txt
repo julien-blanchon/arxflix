@@ -28,3 +28,4 @@ pymupdf==1.26.3
 Pillow==11.2.1
 jinja2==3.1.6
 markthat==1.2.14
+firecrawl-py==1.7.0
