@@ -32,6 +32,16 @@ def replace_keys_with_values(text, dict_list):
   for d in dict_list:
     combined_dict.update(d)
 
+  # If no replacements needed, return original text
+  if not combined_dict:
+    return text
+
+  # Filter out empty keys to avoid KeyError
+  combined_dict = {k: v for k, v in combined_dict.items() if k.strip()}
+  
+  if not combined_dict:
+    return text
+
   # Sort keys by length in descending order to handle overlapping keys correctly
   sorted_keys = sorted(combined_dict.keys(), key=len, reverse=True)
 
@@ -56,7 +66,18 @@ def adjust_links(text_md : str, paper_id : str):
         else:
             return '![]('+link.replace('![](',f'https://arxiv.org/html/{paper_id}/').replace(')','')+')'
 
-    links  = [{line : get_link(line,paper_id)} for line in text_md.split('\n') if '![](' in line]
+    # Find lines with image links and create replacement dictionary
+    links = []
+    for line in text_md.split('\n'):
+        if '![](' in line and line.strip():  # Only process non-empty lines with image links
+            try:
+                adjusted_link = get_link(line, paper_id)
+                if line != adjusted_link:  # Only add if there's actually a change
+                    links.append({line: adjusted_link})
+            except Exception as e:
+                # Log the error but continue processing
+                logger.warning(f"Failed to adjust link '{line}': {e}")
+                continue
 
     return replace_keys_with_values(text_md, links)
 
@@ -676,13 +697,30 @@ def _process_script_open_gemini(paper: str, paper_id:str, end_point_base_url : s
     return result
 
 
-def process_script(method: Literal["openai", "local", "gemini", "groq", "openrouter"], paper_markdown: str, paper_id : str, end_point_base_url : str, from_pdf: bool=False) -> str:
-    """Generate a video script for a research paper.
+def process_script(
+    method: Literal["openai", "local", "gemini", "groq", "openrouter"], 
+    paper_markdown: str, 
+    paper_id: str, 
+    end_point_base_url: str, 
+    from_pdf: bool = False,
+    content_type: Literal["research", "tutorial", "general"] = "research"
+) -> str:
+    """Generate a video script with content type awareness.
 
     Parameters
     ----------
+    method : Literal["openai", "local", "gemini", "groq", "openrouter"]
+        The AI provider method to use for script generation.
     paper_markdown : str
-        A research paper in markdown format.
+        Content in markdown format.
+    paper_id : str
+        The paper ID (for arXiv papers) or source identifier.
+    end_point_base_url : str
+        Base URL for local/custom endpoints.
+    from_pdf : bool, optional
+        Whether the content is from PDF processing, by default False.
+    content_type : Literal["research", "tutorial", "general"], optional
+        The type of content to generate script for, by default "research".
 
     Returns
     -------
@@ -692,22 +730,56 @@ def process_script(method: Literal["openai", "local", "gemini", "groq", "openrou
     Raises
     ------
     ValueError
-        If no result is returned from OpenAI.
+        If invalid method is provided or script generation fails.
+        
+    Requirements: 5.1, 5.2, 6.1, 6.2, 7.1, 7.2
     """
-    if not from_pdf:
-        pd_corrected_links = adjust_links(paper_markdown , paper_id )
+    # For research content, use existing legacy processing for backward compatibility
+    if content_type == "research":
+        if not from_pdf:
+            pd_corrected_links = adjust_links(paper_markdown, paper_id)
+        else:
+            pd_corrected_links = paper_markdown
+            paper_id = "paper_id"
+            
+        if method == "openai":
+            return _process_script_gpt(pd_corrected_links, paper_id)
+        elif method == "local":
+            return _process_script_open_source(pd_corrected_links, paper_id, end_point_base_url)
+        elif method == "gemini":
+            return _process_script_open_gemini(pd_corrected_links, paper_id, end_point_base_url)
+        elif method == "groq":
+            return _process_script_groq(pd_corrected_links, paper_id)
+        elif method == "openrouter":
+            return _process_script_openrouter(pd_corrected_links, paper_id)
+        else:
+            raise ValueError("Invalid method. Please choose from 'openai', 'local', 'gemini', 'groq', 'openrouter'.")
+    
+    # For tutorial and general content, use the new overview generators
     else:
-        pd_corrected_links = paper_markdown
-        paper_id = "paper_id"
-    if method == "openai":
-        return _process_script_gpt(pd_corrected_links,paper_id)
-    if method == "local":
-        return _process_script_open_source(pd_corrected_links, paper_id, end_point_base_url)
-    if method == "gemini":
-        return _process_script_open_gemini(pd_corrected_links, paper_id, end_point_base_url)
-    if method == "groq":
-        return _process_script_groq(pd_corrected_links,paper_id)
-    if method == "openrouter":
-        return _process_script_openrouter(pd_corrected_links, paper_id)
-    else:
-        raise ValueError("Invalid method. Please choose 'openai'.")
+        # Import here to avoid circular imports
+        from backend.utils.overview_generators import generate_overview_by_type
+        
+        # Map method names to overview generator method names
+        overview_method_map = {
+            "openai": "openai",
+            "gemini": "gemini", 
+            "groq": "groq",
+            "openrouter": "openrouter"
+        }
+        
+        if method == "local":
+            # For local method, fall back to openrouter as overview generators don't support local
+            logger.warning("Local method not supported for tutorial/general content, falling back to openrouter")
+            overview_method = "openrouter"
+        else:
+            overview_method = overview_method_map.get(method)
+            if not overview_method:
+                raise ValueError(f"Method '{method}' not supported for content type '{content_type}'")
+        
+        return generate_overview_by_type(
+            content_type=content_type,
+            markdown=paper_markdown,
+            source_identifier=paper_id,
+            method=overview_method
+        )

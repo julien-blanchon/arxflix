@@ -34,7 +34,7 @@ try:
 except ImportError:
     mlx_whisper = None
 
-from backend.type import Text, Caption, Figure, Equation, Headline, RichContent
+from backend.type import Text, Caption, Figure, Equation, Headline, CodeSnippet, RichContent
 
 logger = logging.getLogger(__name__)
 
@@ -57,27 +57,112 @@ def _parse_script(script: str) -> list[RichContent | Text]:
     """
     lines = script.split("\n")
     content = []
-    # For each line, parse it and create the corresponding object
-    for line in lines:
+    i = 0
+    
+    while i < len(lines):
+        line = lines[i]
+        
         if line.startswith(r"\Figure: "):
             figure_content = line.replace(r"\Figure: ", "")
             figure = Figure(content=figure_content)
             content.append(figure)
+            i += 1
         elif line.startswith(r"\Text: "):
             text_content = line.replace(r"\Text: ", "")
             text = Text(content=text_content)
             content.append(text)
+            i += 1
         elif line.startswith(r"\Equation: "):
             equation_content = line.replace(r"\Equation: ", "")
             equation = Equation(content=equation_content)
             content.append(equation)
+            i += 1
         elif line.startswith(r"\Headline: "):
             headline_content = line.replace(r"\Headline: ", "")
             headline = Headline(content=headline_content)
             content.append(headline)
+            i += 1
+        elif line.startswith(r"\Code_Snippet: "):
+            # Handle multi-line code snippets
+            code_lines = [line.replace(r"\Code_Snippet: ", "")]
+            i += 1
+            
+            # Continue reading lines until we hit another component or end of script
+            while i < len(lines) and not lines[i].startswith("\\"):
+                code_lines.append(lines[i])
+                i += 1
+            
+            code_content = "\n".join(code_lines)
+            # Try to detect language from code content
+            language = _detect_code_language(code_content)
+            code_snippet = CodeSnippet(content=code_content, language=language)
+            content.append(code_snippet)
         else:
-            logger.warning(f"Unknown line: {line}")
+            if line.strip():  # Only warn about non-empty lines
+                logger.warning(f"Unknown line: {line}")
+            i += 1
+    
     return content
+
+
+def _detect_code_language(code: str) -> str:
+    """Detect programming language from code content.
+    
+    Parameters
+    ----------
+    code : str
+        Code content to analyze
+        
+    Returns
+    -------
+    str
+        Detected language or 'text' as fallback
+    """
+    code_lower = code.lower().strip()
+    
+    # Java indicators (check before Python to avoid false positives)
+    if any(keyword in code for keyword in ['public class', 'public static void main', 'System.out.println']) or \
+       ('public ' in code and 'class ' in code and '{' in code):
+        return 'java'
+    
+    # Python indicators
+    if any(keyword in code for keyword in ['def ', 'import ', 'from ', 'class ', 'if __name__', 'print(', 'len(', 'range(']) or \
+       code.strip().startswith('def ') or 'python' in code_lower:
+        return 'python'
+    
+    # JavaScript/TypeScript indicators
+    if any(keyword in code for keyword in ['function ', 'const ', 'let ', 'var ', '=>', 'console.log', 'require(', 'import {']):
+        return 'javascript'
+    
+    # C/C++ indicators
+    if any(keyword in code for keyword in ['#include', 'int main(', 'printf(', 'cout <<', 'std::']):
+        return 'cpp'
+    
+    # HTML indicators
+    if any(keyword in code for keyword in ['<html>', '<div>', '<body>', '<head>', '<!DOCTYPE']):
+        return 'html'
+    
+    # CSS indicators
+    if any(keyword in code for keyword in ['{', '}', ':', ';']) and any(prop in code for prop in ['color:', 'background:', 'margin:', 'padding:']):
+        return 'css'
+    
+    # SQL indicators
+    if any(keyword in code_lower for keyword in ['select ', 'from ', 'where ', 'insert ', 'update ', 'delete ', 'create table']):
+        return 'sql'
+    
+    # JSON indicators
+    if code.strip().startswith('{') and code.strip().endswith('}') and '"' in code:
+        return 'json'
+    
+    # YAML indicators
+    if ':' in code and ('\n' in code or code.count(':') > 1) and not code.strip().startswith('{'):
+        return 'yaml'
+    
+    # Bash/Shell indicators
+    if any(keyword in code for keyword in ['#!/bin/bash', '#!/bin/sh', 'echo ', 'cd ', 'ls ', 'grep ', 'awk ', 'sed ']):
+        return 'bash'
+    
+    return 'text'
 
 
 def _make_caption_whisper(result: dict) -> list[Caption]:
@@ -655,12 +740,20 @@ def export_rich_content_json(rich_content: list[RichContent], out_path: str) -> 
                     shutil.copy(path_obj, destination)
                 # Use only the filename in the JSON (relative URL).
                 content.content = path_obj.name
-        rich_content_dict.append({
+        
+        # Build the base dictionary
+        content_dict = {
             "type": content.__class__.__name__.lower(),
             "content": content.content,
             "start": content.start,
             "end": content.end,
-        })
+        }
+        
+        # Add language field for code snippets
+        if isinstance(content, CodeSnippet):
+            content_dict["language"] = content.language
+            
+        rich_content_dict.append(content_dict)
 
     df = pd.DataFrame(rich_content_dict)
     df.to_json(out_path, orient="records")

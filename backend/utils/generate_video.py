@@ -6,6 +6,10 @@ from time import sleep
 from typing import Literal
 import json
 import socket
+import requests
+import hashlib
+from urllib.parse import urlparse
+import os
 
 VIDEO_FPS = 30
 VIDEO_HEIGHT = 1080
@@ -46,6 +50,59 @@ class CompositionProps:
         self.durationInFrames: int = self.durationInSeconds * VIDEO_FPS + 7 * VIDEO_FPS
 
 
+def download_external_image(url: str, cache_dir: Path) -> str:
+    """Download an external image and return the local filename.
+    
+    Args:
+        url: The external image URL
+        cache_dir: Directory to cache downloaded images
+        
+    Returns:
+        Local filename of the downloaded image
+    """
+    try:
+        # Create a hash-based filename to avoid conflicts
+        url_hash = hashlib.md5(url.encode()).hexdigest()
+        parsed_url = urlparse(url)
+        file_extension = os.path.splitext(parsed_url.path)[1] or '.png'
+        local_filename = f"cached_{url_hash}{file_extension}"
+        local_path = cache_dir / local_filename
+        
+        # Download if not already cached
+        if not local_path.exists():
+            logger.info(f"Downloading external image: {url}")
+            
+            # Use headers to avoid being blocked
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'DNT': '1',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+            }
+            
+            response = requests.get(url, headers=headers, timeout=30, stream=True)
+            response.raise_for_status()
+            
+            # Write the image data
+            with open(local_path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+            
+            logger.info(f"Downloaded and cached: {local_filename}")
+        else:
+            logger.info(f"Using cached image: {local_filename}")
+            
+        return local_filename
+        
+    except Exception as e:
+        logger.error(f"Failed to download image {url}: {e}")
+        # Return a placeholder or the original URL as fallback
+        return "placeholder.png"
+
+
 def expose_directory(directory: Path):
     # pnpx http-server --cors -a localhost -p 8080
     subprocess.run(
@@ -71,8 +128,7 @@ def process_video(
     free_port = get_free_port()
     print(f"Free port: {free_port}")
     # Ensure that figures inside the Rich Content JSON can be fetched by the Remotion bundle.
-    # If a Figure has a local filename (e.g. "figure_1.png"), we prefix it with the URL of the
-    # temporary static server so that the browser inside Remotion can retrieve it over HTTP.
+    # Download external images and update references to local files.
     rich_json_path = input / "rich.json"
     if rich_json_path.exists():
         try:
@@ -83,10 +139,23 @@ def process_video(
                     isinstance(item, dict)
                     and item.get("type") == "figure"
                     and isinstance(item.get("content"), str)
-                    and not item["content"].lower().startswith(("http://", "https://"))
                 ):
-                    # Prefer IPv4 to avoid environments where localhost resolves to ::1
-                    item["content"] = f"http://127.0.0.1:{free_port}/{item['content']}"
+                    content_url = item["content"]
+                    
+                    if content_url.lower().startswith(("http://", "https://")):
+                        # Download external image and replace with local reference
+                        try:
+                            local_filename = download_external_image(content_url, input)
+                            item["content"] = f"http://127.0.0.1:{free_port}/{local_filename}"
+                            logger.info(f"Replaced external URL {content_url} with local {local_filename}")
+                        except Exception as e:
+                            logger.error(f"Failed to download {content_url}: {e}")
+                            # Keep original URL as fallback (may still fail)
+                            pass
+                    else:
+                        # Local file - prefix with server URL
+                        item["content"] = f"http://127.0.0.1:{free_port}/{content_url}"
+                        
             rich_json_path.write_text(json.dumps(data))
         except Exception as e:
             logger.warning(f"Failed to rewrite {rich_json_path} with absolute URLs: {e}")

@@ -258,6 +258,8 @@ def generate_script(method: Literal["openai","local","gemini","openrouter","groq
     -------
     str
         The video script
+        
+    Requirements: 5.1, 5.2, 6.1, 6.2, 7.1, 7.2
     """
     try:
         if from_pdf:
@@ -265,31 +267,21 @@ def generate_script(method: Literal["openai","local","gemini","openrouter","groq
         
         logger.info(f"Generating script from content using method: {method}")
         
-        # If content_type is specified, use the new content-type-aware generators
-        if content_type and method != "local":
-            logger.info(f"Using content-type-aware generation for {content_type} content")
-            
-            # Map method names to match overview generator expectations
-            method_mapping = {
-                "openai": "openai",
-                "gemini": "gemini", 
-                "openrouter": "openrouter",
-                "groq": "groq"
-            }
-            
-            if method in method_mapping:
-                return generate_overview_by_type(
-                    content_type=content_type,
-                    markdown=paper_markdown,
-                    source_identifier=paper_id,
-                    method=method_mapping[method]
-                )
-            else:
-                logger.warning(f"Method {method} not supported for content-type-aware generation, falling back to legacy")
+        # Use the enhanced process_script function with content type awareness
+        # Default to "research" for backward compatibility if no content_type specified
+        effective_content_type = content_type or "research"
         
-        # Fall back to existing script generation for backward compatibility
-        logger.info(f"Using legacy script generation")
-        script = process_script(method, paper_markdown, paper_id, end_point_base_url, from_pdf)
+        logger.info(f"Using content type: {effective_content_type}")
+        
+        script = process_script(
+            method=method,
+            paper_markdown=paper_markdown,
+            paper_id=paper_id,
+            end_point_base_url=end_point_base_url,
+            from_pdf=from_pdf,
+            content_type=effective_content_type
+        )
+        
         return script
         
     except Exception as e:

@@ -7,12 +7,14 @@ import {
 } from 'remotion';
 import { InlineMath } from 'react-katex';
 import { preloadImage } from "@remotion/preload";
+import { CodeSnippet } from './CodeSnippet';
 
 export type RichContent = {
-	type: 'figure' | 'headline' | 'equation';
+	type: 'figure' | 'headline' | 'equation' | 'code';
 	content: string;
 	start: number;
 	end: number;
+	language?: string; // For code snippets
 };
 
 export const CurrentFigure: React.FC<{
@@ -69,6 +71,18 @@ export const CurrentFigure: React.FC<{
 		return (
 			<div className="text-5xl font-semibold text-black text-center" style={styleCombined}>
 				<InlineMath math={currentFigure.content} />
+			</div>
+		);
+	} else if (currentFigure.type === 'codesnippet') {
+		return (
+			<div className="flex w-full h-full justify-center items-center px-4">
+				<CodeSnippet
+					code={currentFigure.content}
+					language={currentFigure.language || 'text'}
+					startFrame={currentFigure.start * fps}
+					endFrame={currentFigure.end * fps}
+					transitionFrames={transitionFrames}
+				/>
 			</div>
 		);
 	}

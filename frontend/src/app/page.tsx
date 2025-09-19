@@ -19,6 +19,9 @@ import {
   generateScriptGenerateScriptPost,
   generateVideoGenerateVideoPost
 } from '@/lib/client'
+import { SmartInput, type InputType } from "@/components/ui/smart-input";
+import { ContentTypeIndicator, type ContentType, type ProcessingMethod } from "@/components/ui/content-type-indicator";
+import { processUrl, generateOverview, generatePaperFromUrl } from "@/lib/client/url-processing";
 
 client.setConfig({
   baseURL: "http://127.0.0.1:8000/",
@@ -96,47 +99,142 @@ import {
 
 export default function Home() {
   const [mdContent, setMdContent] = useLocalStorage<string | undefined>("md", undefined);
-  const [arxivId, setArxivId] = useLocalStorage<string | undefined>("id", undefined);
+  const [inputValue, setInputValue] = useLocalStorage<string | undefined>("input", undefined);
   const [script, setScript] = useLocalStorage<string | undefined>("script", undefined);
   const [folder, setFolder] = useLocalStorage<string | undefined>("folder", "3wbcwc");
   const [totalDuration, setTotalDuration] = useLocalStorage<number | undefined>("total_duration", undefined);
   const [state, setState] = useState<"loading" | "error" | undefined>(undefined);
   const [scriptProvider, setScriptProvider] = useLocalStorage<ScriptProvider>("script_provider", "openrouter");
   const [openrouterModel, setOpenrouterModel] = useLocalStorage<string | undefined>("openrouter_model", "google/gemini-2.0-flash-001");
+  
+  // New state for URL processing
+  const [contentType, setContentType] = useLocalStorage<ContentType | undefined>("content_type", undefined);
+  const [processingMethod, setProcessingMethod] = useLocalStorage<ProcessingMethod | undefined>("processing_method", undefined);
+  const [confidenceScore, setConfidenceScore] = useLocalStorage<number | undefined>("confidence_score", undefined);
+  const [sourceUrl, setSourceUrl] = useLocalStorage<string | undefined>("source_url", undefined);
+  const [paperId, setPaperId] = useLocalStorage<string | undefined>("paper_id", undefined);
 
-  const callGeneratePaper = async (arxivId: string) => {
+  const callGeneratePaper = async (input: string) => {
     setState("loading");
-    const response = await generatePaperGeneratePaperGet({
-      client: client,
-      query: { method: "arxiv_html", paper_id: arxivId },
-    })
+    
+    try {
+      // Detect if input is arXiv ID or URL
+      const arxivIdPattern = /^\d{4}\.\d{4,5}(v\d+)?$/;
+      const isArxivId = arxivIdPattern.test(input.trim());
+      const isUrl = input.trim().startsWith('http');
+      
+      if (isUrl) {
+        // Process URL using new endpoint
+        console.log("Processing URL:", input);
+        const urlResult = await processUrl(input);
+        
+        if (!urlResult.success) {
+          setState("error");
+          console.error("URL processing failed:", urlResult.error_message);
+          return "error";
+        }
+        
+        // Update state with URL processing results
+        setMdContent(urlResult.markdown_content);
+        setContentType(urlResult.content_type);
+        setProcessingMethod(urlResult.source_type);
+        setConfidenceScore(urlResult.confidence_score);
+        setSourceUrl(urlResult.source_url);
+        setPaperId(urlResult.paper_id);
+        
+        console.log("URL processed successfully:", {
+          contentType: urlResult.content_type,
+          processingMethod: urlResult.source_type,
+          confidence: urlResult.confidence_score
+        });
+        
+      } else if (isArxivId) {
+        // Use existing arXiv processing
+        console.log("Processing arXiv ID:", input);
+        const response = await generatePaperGeneratePaperGet({
+          client: client,
+          query: { method: "arxiv_html", paper_id: input },
+        });
 
-    console.log("Response:", response);
+        if (response.error) {
+          setState("error");
+          console.error("arXiv processing failed:", response.error);
+          return "error";
+        }
 
-    if (response.error) {
+        setMdContent(response.data);
+        // Set defaults for arXiv content
+        setContentType("research");
+        setProcessingMethod("arxiv");
+        setConfidenceScore(1.0);
+        setSourceUrl(`https://arxiv.org/abs/${input}`);
+        setPaperId(input);
+        
+      } else {
+        setState("error");
+        console.error("Invalid input format:", input);
+        return "error";
+      }
+      
+      setState(undefined);
+      
+    } catch (error) {
       setState("error");
+      console.error("Error processing input:", error);
       return "error";
     }
-
-    setMdContent(response.data);
-    setState(undefined);
   }
 
-  const callGenerateScript = async (mdContent: string, paper_id: string ) => {
+  const callGenerateScript = async (mdContent: string, sourceIdentifier: string) => {
     console.log("Calling generate script with mdContent:", mdContent);
     setState("loading");
-    const response = await generateScriptGenerateScriptPost({ 
-      client: client,
-      query: { method: scriptProvider, paper_markdown: mdContent, paper_id: paper_id },
-    });
+    
+    try {
+      // Use content-type-aware script generation if we have content type info
+      if (contentType && (contentType === 'tutorial' || contentType === 'general')) {
+        console.log("Using content-type-aware generation for:", contentType);
+        const response = await generateOverview(
+          mdContent,
+          contentType,
+          sourceIdentifier,
+          scriptProvider as any
+        );
+        
+        if (!response.success) {
+          setState("error");
+          console.error("Overview generation failed:", response.error_message);
+          return "error";
+        }
+        
+        setScript(response.script);
+      } else {
+        // Use existing script generation for research content or fallback
+        console.log("Using traditional script generation");
+        const response = await generateScriptGenerateScriptPost({ 
+          client: client,
+          query: { 
+            method: scriptProvider, 
+            paper_markdown: mdContent, 
+            paper_id: sourceIdentifier
+          },
+        });
 
-    if (response.error) {
+        if (response.error) {
+          setState("error");
+          console.error("Script generation failed:", response.error);
+          return "error";
+        }
+        
+        setScript(response.data);
+      }
+      
+      setState(undefined);
+      
+    } catch (error) {
       setState("error");
-      return "errror"
+      console.error("Error generating script:", error);
+      return "error";
     }
-    const script = response.data;
-    setScript(script);
-    setState(undefined);
   }
 
   const callGenerateAssets = async (script: string) => {
@@ -167,7 +265,7 @@ export default function Home() {
   }
 
   const steps: StepItem[] = [
-    { label: "Generate Paper", description: "Extract content from the paper", icon: ScrollText },
+    { label: "Process Content", description: "Extract content from arXiv paper or URL", icon: ScrollText },
     { label: "Generate Script", description: "Generate script from the content", icon: Captions },
     { label: "Generate Assets", description: "Generate assets for the video", icon: AudioLines },
     { label: "Generate Video", description: "Generate the video", icon: Video },
@@ -177,20 +275,45 @@ export default function Home() {
     <main className="flex min-h-screen flex-col items-center justify-between p-24">
       <div className="flex w-full flex-col gap-4">
         <Stepper orientation="horizontal" initialStep={3} steps={steps} state={state}>
-          <Step label="Extract Markdown" description="Convert paper pdf to markdown" icon={ScrollText}>
-            <div className="m-3 h-96 flex items-center justify-center my-4 border bg-secondary text-primary rounded-md">
-              <Input
-                className="w-1/3"
-                type="text"
-                placeholder="Enter arXiv ID"
-                value={arxivId || undefined}
-                onChange={(e) => setArxivId(e.target.value)} />
+          <Step label="Process Content" description="Extract content from arXiv paper or URL" icon={ScrollText}>
+            <div className="m-3 h-96 flex flex-col items-center justify-center my-4 border bg-secondary text-primary rounded-md space-y-4">
+              <div className="w-2/3 max-w-md">
+                <SmartInput
+                  value={inputValue || ""}
+                  onChange={setInputValue}
+                  placeholder="Enter arXiv ID (e.g., 2404.02905) or URL"
+                  disabled={state === "loading"}
+                />
+              </div>
+              
+              {/* Content type indicator */}
+              {state === "loading" && inputValue && (
+                <div className="w-2/3 max-w-md">
+                  <div className="p-4 bg-gray-50 border rounded-lg">
+                    <div className="flex items-center space-x-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                      <span className="text-sm text-gray-600">Processing content...</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {contentType && processingMethod && sourceUrl && state !== "loading" && (
+                <div className="w-2/3 max-w-md">
+                  <ContentTypeIndicator
+                    contentType={contentType}
+                    processingMethod={processingMethod}
+                    confidenceScore={confidenceScore}
+                    sourceUrl={sourceUrl}
+                  />
+                </div>
+              )}
             </div>
             <StepButtons
-              disabled={!arxivId}
+              disabled={!inputValue || !inputValue.trim()}
               onClick={async (state) => {
-                if (!arxivId) return;
-                await callGeneratePaper(arxivId)
+                if (!inputValue?.trim()) return;
+                await callGeneratePaper(inputValue.trim())
                 return state;
               }} />
           </Step>
@@ -214,7 +337,8 @@ export default function Home() {
             </div>
             <StepButtons onClick={async (state) => {
               if (!mdContent) return;
-              await callGenerateScript(mdContent, arxivId ?? 'paper_id')
+              const sourceIdentifier = paperId || inputValue || 'unknown_source';
+              await callGenerateScript(mdContent, sourceIdentifier)
               return state;
             }} />
           </Step>

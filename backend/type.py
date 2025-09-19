@@ -40,3 +40,8 @@ class Equation(RichContent):
 @dataclass
 class Headline(RichContent):
     pass
+
+
+@dataclass
+class CodeSnippet(RichContent):
+    language: str = "text"
